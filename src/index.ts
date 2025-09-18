@@ -8,6 +8,7 @@ export {
     type ForwardRef,
     type MiddlewareClassMetadata,
     type MiddlewareScope,
+    type GlobalMiddlewarePhase,
     type MiddlewareHandler,
     forwardRef
 } from './types';

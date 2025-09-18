@@ -52,6 +52,34 @@ describe('Session utilities', () => {
         expect(result).toBeInstanceOf(ScopedSync);
     });
 
+    it('runInScope creates named scope context automatically', () => {
+        @Injectable({ lifecycle: Lifecycle.Scoped, name: 'scoped-request' })
+        class ScopedRequest {}
+
+        const container = getContainer();
+
+        const instance = container.runInScope('request', () => {
+            return container.resolve<ScopedRequest>('scoped-request');
+        });
+
+        expect(instance).toBeInstanceOf(ScopedRequest);
+    });
+
+    it('runInScope rejects scope mismatches for existing sessions', () => {
+        @Injectable({ lifecycle: Lifecycle.Scoped, name: 'scoped-job' })
+        class ScopedJob {}
+
+        const container = getContainer();
+        const scope = container.createSession('job');
+        void ScopedJob;
+
+        expect(() =>
+            container.runInScope('request', () => container.resolve('scoped-job'), scope.id)
+        ).toThrow('does not match requested scope');
+
+        container.destroySession(scope.id);
+    });
+
     it('resolves by constructor token', () => {
         @Injectable({ lifecycle: Lifecycle.Singleton })
         class ResolverTarget {}

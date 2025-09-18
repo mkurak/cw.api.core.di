@@ -59,9 +59,11 @@ export interface MiddlewareHandler {
 
 export interface ResolveOptions {
     sessionId?: string;
+    scope?: string;
 }
 
 export interface SessionInfo {
     id: string;
     createdAt: number;
+    scope?: string;
 }

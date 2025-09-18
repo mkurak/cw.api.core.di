@@ -19,6 +19,11 @@ interface InternalRegistration extends Registration {
 
 type InstanceMap = Map<string, unknown>;
 
+interface ScopeContext {
+    sessionId: string;
+    scope?: string;
+}
+
 function isConstructorToken(token: ResolveToken): token is InjectableClass {
     return typeof token === 'function';
 }
@@ -32,7 +37,7 @@ export class Container {
     private registrationsByCtor = new WeakMap<InjectableClass, InternalRegistration>();
     private sessions = new Map<string, InstanceMap>();
     private sessionInfos = new Map<string, SessionInfo>();
-    private readonly sessionStorage = new AsyncLocalStorage<string>();
+    private readonly sessionStorage = new AsyncLocalStorage<ScopeContext>();
     private sessionCounter = 0;
 
     register(target: InjectableClass, options: InjectableOptions = {}): Registration {
@@ -77,41 +82,61 @@ export class Container {
             throw new Error(`No registration found for token: ${this.describeToken(token)}`);
         }
 
-        return this.resolveRegistration(registration, options, [], undefined) as T;
+        const normalized = this.normalizeResolveOptions(options);
+        return this.resolveRegistration(registration, normalized, [], undefined) as T;
     }
 
     getSessionInfo(sessionId: string): SessionInfo | undefined {
         return this.sessionInfos.get(sessionId);
     }
 
-    createSession(): SessionInfo {
+    createSession(scope?: string): SessionInfo {
         const id = `session-${++this.sessionCounter}`;
         this.sessions.set(id, new Map());
-        const info: SessionInfo = { id, createdAt: Date.now() };
+        const info: SessionInfo = { id, createdAt: Date.now(), scope };
         this.sessionInfos.set(id, info);
         return info;
     }
 
-    runInSession<T>(callback: () => T | Promise<T>, existingSessionId?: string): Promise<T> | T {
+    runInSession<T>(
+        callback: () => T | Promise<T>,
+        existingSessionId?: string,
+        scopeName?: string
+    ): Promise<T> | T {
         if (existingSessionId) {
-            if (!this.sessions.has(existingSessionId)) {
+            const info = this.sessionInfos.get(existingSessionId);
+            if (!info) {
                 throw new Error(`Session "${existingSessionId}" not found.`);
             }
-            return this.sessionStorage.run(existingSessionId, () => callback());
+
+            if (scopeName && info.scope && info.scope !== scopeName) {
+                throw new Error(
+                    `Session "${existingSessionId}" belongs to scope "${info.scope}" which does not match requested scope "${scopeName}".`
+                );
+            }
+
+            return this.sessionStorage.run(
+                { sessionId: existingSessionId, scope: info.scope },
+                () => callback()
+            );
         }
 
-        const sessionInfo = this.createSession();
-        const sessionId = sessionInfo.id;
-        const result = this.sessionStorage.run(sessionId, () => callback());
+        const sessionInfo = this.createSession(scopeName);
+        const context: ScopeContext = { sessionId: sessionInfo.id, scope: sessionInfo.scope };
+        const result = this.sessionStorage.run(context, () => callback());
 
         if (result instanceof Promise) {
             return result.finally(() => {
-                this.destroySession(sessionId);
+                this.destroySession(sessionInfo.id);
             });
         }
 
-        this.destroySession(sessionId);
+        this.destroySession(sessionInfo.id);
         return result;
+    }
+
+    runInScope<T>(scopeName: string, callback: () => T | Promise<T>, existingSessionId?: string) {
+        return this.runInSession(callback, existingSessionId, scopeName);
     }
 
     destroySession(sessionId: string): void {
@@ -162,7 +187,7 @@ export class Container {
             case Lifecycle.Singleton:
                 return this.resolveSingleton(registration, options, nextPath);
             case Lifecycle.Scoped: {
-                const sessionId = options.sessionId ?? this.sessionStorage.getStore();
+                const sessionId = options.sessionId ?? this.sessionStorage.getStore()?.sessionId;
                 if (!sessionId) {
                     throw new Error(
                         `Scoped service "${registration.token}" resolved without an active session. Use createSession/runInSession.`
@@ -203,9 +228,20 @@ export class Container {
             throw new Error(`Session "${sessionId}" not found when resolving scoped service.`);
         }
 
+        const info = this.sessionInfos.get(sessionId);
+        if (options.scope && info?.scope && info.scope !== options.scope) {
+            throw new Error(
+                `Scoped service "${registration.token}" cannot be resolved in scope "${options.scope}" (session owned by "${info.scope}").`
+            );
+        }
+
+        const effectiveScope = options.scope ?? info?.scope;
+
         if (!session.has(registration.token)) {
             const scopedOptions =
-                options.sessionId === sessionId ? options : { ...options, sessionId };
+                options.sessionId === sessionId && options.scope === effectiveScope
+                    ? options
+                    : { ...options, sessionId, scope: effectiveScope };
             const instance = this.instantiate(
                 registration,
                 scopedOptions,
@@ -323,7 +359,8 @@ export class Container {
         }
 
         if (usedForward && designType === Function) {
-            return () => this.resolveRegistration(registration, options, [], parentLifecycle);
+            const captured = this.normalizeResolveOptions(options);
+            return () => this.resolveRegistration(registration, captured, [], parentLifecycle);
         }
 
         return this.resolveRegistration(registration, options, path, parentLifecycle);
@@ -351,7 +388,8 @@ export class Container {
         }
 
         if (usedForward && paramType === Function) {
-            return () => this.resolveRegistration(registration, options, [], parentLifecycle);
+            const captured = this.normalizeResolveOptions(options);
+            return () => this.resolveRegistration(registration, captured, [], parentLifecycle);
         }
 
         return this.resolveRegistration(registration, options, path, parentLifecycle);
@@ -396,6 +434,41 @@ export class Container {
             return '[forwardRef]';
         }
         return String(token);
+    }
+
+    private normalizeResolveOptions(options: ResolveOptions): ResolveOptions {
+        const context = this.sessionStorage.getStore();
+        let normalized = options;
+
+        if (context) {
+            const needsClone =
+                normalized.sessionId !== context.sessionId ||
+                (context.scope && normalized.scope !== context.scope);
+
+            if (needsClone) {
+                normalized = { ...normalized };
+            }
+
+            if (!normalized.sessionId) {
+                normalized.sessionId = context.sessionId;
+            }
+
+            if (context.scope && !normalized.scope) {
+                normalized.scope = context.scope;
+            }
+        }
+
+        if (normalized.sessionId && !normalized.scope) {
+            const info = this.sessionInfos.get(normalized.sessionId);
+            if (info?.scope) {
+                if (normalized === options) {
+                    normalized = { ...normalized };
+                }
+                normalized.scope = info.scope;
+            }
+        }
+
+        return normalized;
     }
 
     private disposeIfPossible(instance: unknown): void {
