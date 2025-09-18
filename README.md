@@ -205,3 +205,94 @@ The container orchestration follows a deterministic pipeline:
 - `ContainerStats` tracks registrations, active singleton instances, live sessions, and child container count. Mutations emit `stats:change` with the reason (e.g., `register`, `singleton:init`, `session:create`, `child:create`, `clear`).
 - Event stream: `resolve:start`, `resolve:success`, `resolve:error`, `instantiate`, `dispose`, `stats:change`. Listeners can apply logging, tracing, or metrics emission.
 - `enableEventLogging` is an opt-in console logger; production apps can attach structured sinks to push data into metrics platforms.
+
+---
+
+## API Reference
+
+### Container Class
+Most applications interact with the singleton exported by `getContainer()`, but the `Container` class can be instantiated directly whenever isolated graphs are needed (tests, feature modules, tenants).
+
+#### Constructor
+```ts
+const container = new Container(parentContainer?, inheritanceRules?);
+```
+- `parentContainer` (optional) – enables nested containers; used internally by `createChild`.
+- `inheritanceRules` (internal) – computed from `ChildContainerOptions`; controls which tokens inherit from the parent.
+
+Every container receives a unique ID (`container.getId()`).
+
+#### Registration APIs
+- `register(target, options?): Registration`
+  - `target`: class constructor decorated with `@Injectable` (decorator is optional but recommended for metadata).
+  - `options`:
+    - `name`: string token (alias)
+    - `type`: `ServiceType` (`Service`, `Controller`, `Action`, `Middleware`, etc.)
+    - `lifecycle`: `Lifecycle.Singleton | Scoped | Transient`
+    - `middlewares`: resolve tokens (used for action/controller metadata)
+- `registerModule(module: ModuleRef): void`
+- `createChild(options?: ChildContainerOptions): Container`
+  - `include`: array of tokens/classes to inherit
+  - `exclude`: tokens/classes to block; default behavior inherits everything
+
+#### Resolution APIs
+- `resolve<T>(token, options?): T`
+  - Options: `sessionId`, `scope` (overrides auto-detected context)
+  - Throws with `Token "..." is not available` when parent inheritance rules reject the token
+- `list(type?): Registration[]` – returns registrations from current container plus inherited ones after filtering
+
+#### Session & Lifecycle APIs
+- `createSession(scope?): SessionInfo`
+- `destroySession(sessionId): Promise<void> | void`
+- `runInSession(callback, existingSessionId?, scopeName?)`
+- `runInScope(scopeName, callback, existingSessionId?)`
+
+#### Statistics & Events
+- `getStats(): ContainerStats`
+- `enableEventLogging(options?)`
+- `on(event, listener)` / `off(event, listener)`
+  - Events: `resolve:start`, `resolve:success`, `resolve:error`, `instantiate`, `dispose`, `stats:change`
+
+### Decorators
+All decorators live in `src/decorators.ts` and are exported from the package root.
+
+#### `@Injectable(options?)`
+Declares a class as injectable. Options mirror registration options (`name`, `type`, `lifecycle`, `middlewares`). If omitted, default lifecycle is `Singleton`.
+
+#### `@Inject(token)`
+Overrides constructor parameter or property token. Useful for interface-style injection or when multiple implementations share a base class.
+
+#### `@Optional()`
+Marks constructor parameter **or** decorated property as optional. When the dependency is absent, `undefined` is injected instead of throwing.
+
+#### `@Route`, `@UseMiddleware`, `@Controller`
+Decorators for HTTP metadata. `@Route` is method-only; `@UseMiddleware` attaches middleware tokens to controller methods; `@Controller` sets `basePath`, shared middleware, and optional tags.
+
+#### Middleware Decorators
+- `@RouteMiddleware({ order })`
+- `@GlobalMiddleware({ order, phase })`
+Ensure middleware classes implement a `handle` method. Metadata can be retrieved via `getMiddlewareMetadata`.
+
+#### `ForwardRefInject(() => Token)`
+```ts
+@Injectable()
+class ServiceA {
+  constructor(@ForwardRefInject(() => ServiceB) private readonly getB: () => ServiceB) {}
+}
+
+@Injectable()
+class ServiceB {
+  constructor(private readonly serviceA: ServiceA) {}
+}
+```
+`ForwardRefInject` wraps a function returning the token, enabling circular graphs while maintaining type safety.
+
+### Utility Exports
+- `createModule`, `registerModules`
+- `discover` (dynamic import/discovery helper)
+- Type definitions (`ContainerStats`, `ResolveOptions`, `ChildContainerOptions`, etc.)
+
+### Configuration Objects
+- `ResolveOptions`: `sessionId`, `scope`
+- `ChildContainerOptions`: `include`/`exclude` token arrays for child inheritance
+- `ContainerStats`: shape of stats returned by `getStats`
