@@ -41,8 +41,15 @@
   - Middleware Pipelines for Route Handling
   - Controller & Action Metadata in Practice
   - Modular Architecture Patterns
+  - Building a Service Graph from Scratch
+  - Optional Dependencies (Constructor & Property)
+  - Scoped Lifetimes in HTTP/RPC Contexts
+  - Middleware Pipelines for Route Handling
+  - Controller & Action Metadata in Practice
+  - Modular Architecture Patterns
   - Nested Containers & Tenant Isolation
   - Observability Recipes (Events, Stats, Logging)
+  - Integration Patterns (Workers, CLI, Services)
 - Advanced Topics
   - Forward References & Circular Dependency Strategies
   - Custom Discovery Strategies
@@ -296,3 +303,370 @@ class ServiceB {
 - `ResolveOptions`: `sessionId`, `scope`
 - `ChildContainerOptions`: `include`/`exclude` token arrays for child inheritance
 - `ContainerStats`: shape of stats returned by `getStats`
+
+
+## Usage Guides
+
+### Building a Service Graph from Scratch
+This guide walks through composing modules, lifecycles, and constructor injection in a clean and testable way.
+
+```ts
+import 'reflect-metadata';
+import {
+  Container,
+  Injectable,
+  Inject,
+  Lifecycle,
+  createModule,
+  registerModules
+} from 'cw.api.core.di';
+
+@Injectable({ lifecycle: Lifecycle.Singleton })
+class Logger {
+  info(message: string) {
+    console.log(`[info] ${message}`);
+  }
+}
+
+@Injectable({ lifecycle: Lifecycle.Transient })
+class Mailer {
+  constructor(private readonly logger: Logger) {}
+
+  send(to: string, subject: string) {
+    this.logger.info(`Sending mail to ${to} (${subject})`);
+  }
+}
+
+@Injectable({ lifecycle: Lifecycle.Scoped })
+class UserService {
+  constructor(
+    private readonly mailer: Mailer,
+    @Inject(Logger) private readonly logger: Logger
+  ) {}
+
+  async onboardUser(email: string) {
+    this.logger.info(`Onboarding user ${email}`);
+    this.mailer.send(email, 'Welcome!');
+  }
+}
+
+const CoreModule = createModule({
+  name: 'CoreModule',
+  providers: [Logger]
+});
+
+const FeatureModule = createModule({
+  name: 'FeatureModule',
+  imports: [CoreModule],
+  providers: [Mailer, UserService]
+});
+
+const container = new Container();
+registerModules(container, FeatureModule);
+
+await container.runInScope('onboarding', async () => {
+  const userService = container.resolve(UserService);
+  await userService.onboardUser('alice@example.com');
+});
+```
+
+**Highlights**
+- Modules encapsulate provider groups and can import other modules.
+- Logger is singleton, Mailer transient, UserService scoped—showcasing mixed lifecycles.
+- `runInScope` keeps scoped instances alive for the duration of the onboarding workflow.
+- Constructor injection combines implicit metadata and explicit `@Inject` overrides.
+
+### Optional Dependencies (Constructor & Property)
+Optional dependencies prevent hard failures when tokens are absent. Combine `@Optional()` with `@Inject(token)` or rely on metadata when appropriate.
+
+```ts
+@Injectable()
+class CacheAdapter {
+  get(key: string) { /* ... */ }
+}
+
+@Injectable({ lifecycle: Lifecycle.Singleton })
+class SearchService {
+  constructor(@Optional() private readonly cache?: CacheAdapter) {}
+
+  async query(term: string) {
+    if (this.cache) {
+      const cached = this.cache.get(term);
+      if (cached) return cached;
+    }
+    // otherwise perform an expensive search
+  }
+}
+```
+
+Optional property injection works similarly:
+
+```ts
+@Injectable({ name: 'metrics' })
+class Metrics {}
+
+@Injectable()
+class ReportService {
+  @Inject('metrics')
+  @Optional()
+  metrics?: Metrics;
+
+  generate() {
+    this.metrics?.record('report.generated');
+  }
+}
+```
+
+If `metrics` is not registered, the property stays `undefined`; registering a metrics implementation later allows the container to populate the property automatically.
+
+### Scoped Lifetimes in HTTP/RPC Contexts
+Scoped lifetimes shine in request/response pipelines:
+
+1. Instantiate the container once during application bootstrap.
+2. For each request/job, call `runInScope(scopeName, async () => { ... })`.
+3. Resolve scoped services inside the callback; they are unique per scope and cleaned up afterwards.
+
+Express-style middleware example:
+
+```ts
+const container = getContainer();
+
+app.use(async (req, res, next) => {
+  await container.runInScope('http', async () => {
+    res.locals.container = container;
+    await next();
+  });
+});
+
+app.get('/me', async (req, res) => {
+  const ctx = res.locals.container.resolve(UserContext);
+  res.json(await ctx.loadCurrentUser(req.user.id));
+});
+```
+
+### Middleware Pipelines for Route Handling
+Controller/action metadata remains framework-neutral, allowing adapters to target Express, Fastify, or other routers.
+
+```ts
+@RouteMiddleware({ name: 'auth', order: 10 })
+class AuthMiddleware {
+  async handle(req, res, next) {
+    // authenticate request...
+    return next();
+  }
+}
+
+@Controller({ basePath: '/users', middlewares: ['auth'] })
+class UserController {
+  @Route({ method: 'GET', path: '/' })
+  async list() { /* ... */ }
+
+  @UseMiddleware('audit')
+  @Route({ method: 'POST', path: '/' })
+  async create() { /* ... */ }
+}
+
+function wireExpressRoutes(container: Container, router: express.Router) {
+  const controllers = container.list(ServiceType.Controller);
+
+  for (const registration of controllers) {
+    const meta = getControllerMetadata(registration.target);
+    if (!meta) continue;
+
+    const instance = container.resolve(registration.target);
+    const routes = getControllerRoutes(registration.target);
+
+    for (const { propertyKey, route } of routes) {
+      const tokens = [
+        ...(meta.middlewares ?? []),
+        ...(getActionMiddlewares(registration.target, propertyKey) ?? [])
+      ];
+      const middlewares = tokens.map((token) => container.resolve(token));
+
+      const handler = instance[propertyKey].bind(instance);
+      (router as any)[route.method.toLowerCase()](
+        meta.basePath + route.path,
+        ...middlewares.map((mw) => mw.handle.bind(mw)),
+        handler
+      );
+    }
+  }
+}
+```
+
+### Controller & Action Metadata in Practice
+Use metadata accessors to drive documentation or routing:
+- `getControllerMetadata`, `getControllerRoutes`
+- `getActionRoute`, `getActionMiddlewares`
+- Combine with `discover` to automatically import and register controllers/actions at startup.
+
+### Modular Architecture Patterns
+Modules allow feature-centric organization:
+
+```ts
+const AuthModule = createModule({
+  name: 'AuthModule',
+  providers: [AuthService, AuthMiddleware]
+});
+
+const UserModule = createModule({
+  name: 'UserModule',
+  imports: [AuthModule],
+  providers: [UserController, UserService]
+});
+
+registerModules(container, UserModule);
+```
+
+Modules execute once even if registered multiple times, making them safe to aggregate in different bootstraps (tests, CLI, services).
+
+### Nested Containers & Tenant Isolation
+Child containers can inherit or override providers selectively:
+
+```ts
+const root = getContainer();
+root.register(ConfigService, { name: 'config' });
+
+const tenantA = root.createChild({ include: ['config'], exclude: ['payment-gateway'] });
+tenantA.register(MockPaymentGateway, { name: 'payment-gateway' });
+
+const tenantB = root.createChild({ include: [PaymentGateway] });
+
+tenantA.resolve('payment-gateway'); // returns MockPaymentGateway
+tenantB.resolve(PaymentGateway);    // falls back to root registration
+```
+
+### Observability Recipes (Events, Stats, Logging)
+Leverage event hooks and stats to feed telemetry pipelines:
+
+```ts
+const container = getContainer();
+
+container.on('resolve:success', ({ token, duration }) => {
+  metrics.observe('container.resolve.duration', duration, { token });
+});
+
+container.on('stats:change', ({ stats, reason }) => {
+  logger.debug('container stats updated', { reason, stats });
+});
+
+container.enableEventLogging();
+```
+
+### Integration Patterns (Workers, CLI, Services)
+- **Workers:** create a child container per worker or job execution; include shared infrastructure, override per-job resources.
+- **CLI tools:** register command handlers as transient services; resolve per command invocation.
+- **Microservices:** keep shared modules (config/logger) in the root container; create tenant-specific child containers with targeted overrides (e.g., payment gateways, feature flags).
+
+
+## Advanced Topics
+
+### Forward References & Circular Dependency Strategies
+- Prefer constructor injection with `ForwardRefInject` when two services call each other.
+- If only one direction needs runtime access, use property injection with a setter method to avoid cycles.
+- Break structural cycles by splitting responsibilities into interfaces and letting modules bind concrete implementations.
+
+```ts
+@Injectable()
+class ServiceA {
+  constructor(@ForwardRefInject(() => ServiceB) private readonly getB: () => ServiceB) {}
+}
+
+@Injectable()
+class ServiceB {
+  constructor(private readonly serviceA: ServiceA) {}
+}
+```
+
+### Custom Discovery Strategies
+The built-in `discover` helper loads files based on glob patterns. For finer control:
+- Implement your own loader that reads metadata (e.g., from manifest files) and dynamically imports modules.
+- Combine with `registerModules` to ensure side effects only run once.
+- Useful in monorepos where packages expose a discovery contract rather than relying on file-system scanning.
+
+### Extending or Writing Custom Decorators
+Decorators are plain functions operating on metadata utilities. To add new semantics:
+- Use `Reflect.defineMetadata`/`getMetadata` alongside `metadata.ts` helpers.
+- Create a new decorator that writes metadata, then read it within framework adapters or `Container` extensions.
+- Ensure decorators do not execute heavy logic at definition time; defer to runtime when resolving or wiring modules.
+
+### Integrating with External Frameworks
+- **Express/Fastify**: build adapters that read controller/middleware metadata and map to router methods (see Usage Guides).
+- **GraphQL**: treat resolvers as actions; controller metadata can store SDL tags or GraphQL type info via custom metadata keys.
+- **Job queues**: map queues to scopes (`runInScope('queue-worker', ...)`) and register worker handlers as scoped services.
+
+### Testing Techniques & Mock Containers
+- For unit tests, instantiate a fresh `Container` or use `createChild` to override providers with mocks.
+- Use `resetContainer()` in Jest `beforeEach` when relying on the global singleton; it respects async disposals.
+- Inspect container stats (`getStats()`) in tests to assert registration/cleanup expectations.
+
+## Tooling & Workflows
+
+### Development Scripts & Linting
+- `npm run build` – compiles TypeScript using `tsconfig.build.json` (emits `dist/` without tests).
+- `npm run lint` – ESLint flat config over `src/**/*.ts` and `tests/**/*.ts`.
+- `npm run format` / `npm run format:check` – Prettier formatting enforcement.
+- `npm test` – Jest test suite; respects coverage thresholds when used with the pre-commit hook.
+- `npm run test:coverage` – produces HTML/terminal coverage reports.
+
+### Git Hooks & Validation Pipeline
+- `.githooks/pre-commit` runs `format`, stages updates, then executes `lint` and `test:coverage`. Install via `npm run hooks:install` (or automatically via `prepare`).
+- Hooks ensure every commit maintains formatting, lint hygiene, and coverage ≥ configured thresholds (90/80/90 for statements/functions/lines).
+- The hook is async-aware: coverage or lint failures block the commit with clear console output.
+
+### Release Checklist (Versioning, CHANGE_LOG)
+1. Bump `package.json` version following SemVer (e.g., `1.0.0` for GA, `1.0.1` for hotfixes, `1.1.0` for feature increments).
+2. Update `CHANGE_LOG.md` with a new entry summarizing key changes, motivations, and any migration notes.
+3. Update README (if applicable) with new APIs or patterns.
+4. Run `npm run lint` + `npm run test:coverage` to verify green pipeline.
+5. Publish (e.g., `npm publish`) and tag the release in VCS with the same version number.
+
+> Tip: keep `DEV_NOTES.md` in sync after major changes so future sessions (or teammates) can resume context quickly.
+
+## Migration & Version History
+
+### Semantic Versioning Policy
+The project follows SemVer:
+- **MAJOR** – breaking API changes (e.g., altering decorator contracts, changing module behavior).
+- **MINOR** – backward-compatible feature additions or significant improvements.
+- **PATCH** – bug fixes, documentation updates, or tooling adjustments with no API impact.
+
+### Upgrade Notes by Version
+- **v1.0.0** (initial release)
+  - Complete DI core with constructor/property injection, lifecycle enforcement, and AsyncLocalStorage sessions.
+  - Module and discovery helpers for modular architecture.
+  - Middleware, controller/action metadata for HTTP adapters.
+  - Nested container support with include/exclude inheritance rules.
+  - Container statistics, event hooks, and async-aware disposal pipeline.
+- For future releases, document migrations here (e.g., new required options, behavior changes, deprecations).
+
+## FAQ
+
+**Q: Do I need to enable TypeScript experimental decorators?**
+A: Yes. The package relies on `@Injectable` and other decorators; enable `experimentalDecorators` and `emitDecoratorMetadata` in `tsconfig.json`.
+
+**Q: Can I use this without decorators?**
+A: Mostly yes. You can call `container.register` manually and use string tokens. Decorators provide nicer ergonomics and metadata for discovery, but they are optional for basic DI graphs.
+
+**Q: How do I reset the global container between tests?**
+A: Call `await resetContainer()` before each test. This ensures async disposals complete and statistics reset.
+
+**Q: How do I build nested graphs (tenant-specific overrides)?**
+A: Use `createChild({ include, exclude })` to inherit specific tokens and override others. The child container falls back to the parent according to these rules.
+
+**Q: What happens if dispose throws or returns a promise?**
+A: The container catches exceptions and ignores them (to avoid breaking the app), but awaits promises so cleanup completes before sessions/containers close.
+
+## Contributing Guide
+
+1. Fork the repository and create a feature branch.
+2. Run `npm install` in the package directory (`cw.api.core.di`).
+3. Implement changes with accompanying tests and update README/CHANGE_LOG when applicable.
+4. Run `npm run lint`, `npm run test:coverage`, and ensure the git hook passes.
+5. Submit a pull request describing the rationale and testing performed.
+
+Coding style follows the ESLint/Prettier configuration in the repo. Keep contributions focused; large features should start with a design discussion in issues.
+
+## License
+
+MIT License © CWhiz ecosystem. See `LICENSE` for details.
