@@ -11,6 +11,11 @@ export {
     type GlobalMiddlewarePhase,
     type MiddlewareHandler,
     type HttpMethod,
+    type ContainerEventMap,
+    type ContainerEventName,
+    type ContainerEventListener,
+    type ContainerLogEntry,
+    type ContainerLogOptions,
     forwardRef
 } from './types';
 export { Container } from './container';

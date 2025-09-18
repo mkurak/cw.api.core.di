@@ -83,3 +83,66 @@ export interface SessionInfo {
     createdAt: number;
     scope?: string;
 }
+
+export interface ResolveTraceBase {
+    token: string;
+    target: InjectableClass;
+    lifecycle: Lifecycle;
+    path: string[];
+    depth: number;
+    options: ResolveOptions;
+}
+
+export type ResolveStartEvent = ResolveTraceBase;
+
+export interface ResolveSuccessEvent extends ResolveTraceBase {
+    instance: unknown;
+    duration: number;
+    cached: boolean;
+}
+
+export interface ResolveErrorEvent extends ResolveTraceBase {
+    error: Error;
+}
+
+export interface InstantiateEvent {
+    token: string;
+    target: InjectableClass;
+    lifecycle: Lifecycle;
+    path: string[];
+    depth: number;
+}
+
+export interface DisposeEvent {
+    token: string;
+    sessionId?: string;
+    scope?: string;
+    instance: unknown;
+}
+
+export type ContainerEventMap = {
+    'resolve:start': ResolveStartEvent;
+    'resolve:success': ResolveSuccessEvent;
+    'resolve:error': ResolveErrorEvent;
+    instantiate: InstantiateEvent;
+    dispose: DisposeEvent;
+};
+
+export type ContainerEventName = keyof ContainerEventMap;
+
+export type ContainerEventListener<T extends ContainerEventName> = (
+    payload: ContainerEventMap[T]
+) => void;
+
+export interface ContainerLogEntry<T extends ContainerEventName = ContainerEventName> {
+    timestamp: number;
+    event: T;
+    payload: ContainerEventMap[T];
+}
+
+export interface ContainerLogOptions {
+    sink?: (entry: ContainerLogEntry) => void;
+    includeSuccess?: boolean;
+    includeInstantiate?: boolean;
+    includeDispose?: boolean;
+}

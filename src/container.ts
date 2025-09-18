@@ -1,6 +1,11 @@
 import 'reflect-metadata';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
+    ContainerEventListener,
+    ContainerEventMap,
+    ContainerEventName,
+    ContainerLogEntry,
+    ContainerLogOptions,
     InjectableClass,
     InjectableOptions,
     Lifecycle,
@@ -25,6 +30,60 @@ interface ScopeContext {
     scope?: string;
 }
 
+type ListenerSet = Set<ContainerEventListener<ContainerEventName>>;
+
+const debugSink =
+    typeof console !== 'undefined' && typeof console.debug === 'function'
+        ? console.debug.bind(console)
+        : console.log.bind(console);
+
+const DEFAULT_TRACE_SINK = (entry: ContainerLogEntry): void => {
+    const prefix = `[container:${entry.event}]`;
+    switch (entry.event) {
+        case 'resolve:start': {
+            const payload = entry.payload as ContainerEventMap['resolve:start'];
+            debugSink(
+                prefix,
+                payload.token,
+                'path=',
+                payload.path.join(' -> '),
+                'lifecycle=',
+                payload.lifecycle
+            );
+            break;
+        }
+        case 'resolve:success': {
+            const payload = entry.payload as ContainerEventMap['resolve:success'];
+            debugSink(
+                prefix,
+                payload.token,
+                'cached=',
+                payload.cached,
+                'duration=',
+                `${payload.duration.toFixed(2)}ms`
+            );
+            break;
+        }
+        case 'resolve:error': {
+            const payload = entry.payload as ContainerEventMap['resolve:error'];
+            debugSink(prefix, payload.token, 'error=', payload.error.message);
+            break;
+        }
+        case 'instantiate': {
+            const payload = entry.payload as ContainerEventMap['instantiate'];
+            debugSink(prefix, payload.token, 'path=', payload.path.join(' -> '));
+            break;
+        }
+        case 'dispose': {
+            const payload = entry.payload as ContainerEventMap['dispose'];
+            debugSink(prefix, payload.token, 'session=', payload.sessionId ?? 'unknown');
+            break;
+        }
+        default:
+            debugSink(prefix, entry.payload);
+    }
+};
+
 function isConstructorToken(token: ResolveToken): token is InjectableClass {
     return typeof token === 'function';
 }
@@ -41,6 +100,7 @@ export class Container {
     private readonly sessionStorage = new AsyncLocalStorage<ScopeContext>();
     private sessionCounter = 0;
     private registeredModules = new Set<ModuleRef>();
+    private listeners = new Map<ContainerEventName, ListenerSet>();
 
     register(target: InjectableClass, options: InjectableOptions = {}): Registration {
         const token = generateToken(target, options);
@@ -152,8 +212,10 @@ export class Container {
 
     destroySession(sessionId: string): void {
         const instances = this.sessions.get(sessionId);
+        const scope = this.sessionInfos.get(sessionId)?.scope;
         if (instances) {
-            for (const instance of instances.values()) {
+            for (const [token, instance] of instances.entries()) {
+                this.emit('dispose', { token, sessionId, scope, instance });
                 this.disposeIfPossible(instance);
             }
         }
@@ -170,6 +232,70 @@ export class Container {
         this.registeredModules = new Set<ModuleRef>();
     }
 
+    on<K extends ContainerEventName>(event: K, listener: ContainerEventListener<K>): () => void {
+        let set = this.listeners.get(event);
+        if (!set) {
+            set = new Set();
+            this.listeners.set(event, set);
+        }
+        set.add(listener as ContainerEventListener<ContainerEventName>);
+        return () => this.off(event, listener);
+    }
+
+    off<K extends ContainerEventName>(event: K, listener: ContainerEventListener<K>): void {
+        const set = this.listeners.get(event);
+        if (!set) {
+            return;
+        }
+        set.delete(listener as ContainerEventListener<ContainerEventName>);
+        if (set.size === 0) {
+            this.listeners.delete(event);
+        }
+    }
+
+    enableEventLogging(options: ContainerLogOptions = {}): () => void {
+        const {
+            sink = DEFAULT_TRACE_SINK,
+            includeSuccess = true,
+            includeInstantiate = true,
+            includeDispose = true
+        } = options;
+
+        const push = <K extends ContainerEventName>(event: K, payload: ContainerEventMap[K]) =>
+            sink({ event, payload, timestamp: Date.now() });
+
+        const subscriptions: Array<() => void> = [];
+        subscriptions.push(this.on('resolve:start', (payload) => push('resolve:start', payload)));
+        if (includeSuccess) {
+            subscriptions.push(
+                this.on('resolve:success', (payload) => push('resolve:success', payload))
+            );
+        }
+        subscriptions.push(this.on('resolve:error', (payload) => push('resolve:error', payload)));
+        if (includeInstantiate) {
+            subscriptions.push(this.on('instantiate', (payload) => push('instantiate', payload)));
+        }
+        if (includeDispose) {
+            subscriptions.push(this.on('dispose', (payload) => push('dispose', payload)));
+        }
+
+        return () => {
+            for (const unsubscribe of subscriptions) {
+                unsubscribe();
+            }
+        };
+    }
+
+    private emit<K extends ContainerEventName>(event: K, payload: ContainerEventMap[K]): void {
+        const set = this.listeners.get(event);
+        if (!set || set.size === 0) {
+            return;
+        }
+        for (const listener of Array.from(set)) {
+            (listener as ContainerEventListener<K>)(payload);
+        }
+    }
+
     private resolveRegistration(
         registration: InternalRegistration,
         options: ResolveOptions,
@@ -177,27 +303,77 @@ export class Container {
         parentLifecycle: Lifecycle | undefined
     ): unknown {
         const identifier = registration.token;
-
-        if (path.includes(identifier)) {
-            const cycle = [...path, identifier].join(' -> ');
-            throw new Error(`Circular dependency detected: ${cycle}`);
-        }
-
-        if (
-            parentLifecycle === Lifecycle.Singleton &&
-            registration.lifecycle === Lifecycle.Scoped
-        ) {
-            const parent = path[path.length - 1] ?? 'root';
-            throw new Error(
-                `Lifecycle violation: singleton service "${parent}" cannot depend on scoped service "${identifier}".`
-            );
-        }
-
         const nextPath = [...path, identifier];
+        const depth = path.length;
+        const snapshotOptions = { ...options };
 
+        const startedAt = Date.now();
+        this.emit('resolve:start', {
+            token: identifier,
+            target: registration.target,
+            lifecycle: registration.lifecycle,
+            path: nextPath.slice(),
+            depth,
+            options: snapshotOptions
+        });
+
+        try {
+            if (path.includes(identifier)) {
+                const cycle = [...path, identifier].join(' -> ');
+                throw new Error(`Circular dependency detected: ${cycle}`);
+            }
+
+            if (
+                parentLifecycle === Lifecycle.Singleton &&
+                registration.lifecycle === Lifecycle.Scoped
+            ) {
+                const parent = path[path.length - 1] ?? 'root';
+                throw new Error(
+                    `Lifecycle violation: singleton service "${parent}" cannot depend on scoped service "${identifier}".`
+                );
+            }
+
+            const { instance, fromCache } = this.resolveByLifecycle(
+                registration,
+                options,
+                nextPath
+            );
+
+            this.emit('resolve:success', {
+                token: identifier,
+                target: registration.target,
+                lifecycle: registration.lifecycle,
+                path: nextPath.slice(),
+                depth,
+                options: snapshotOptions,
+                instance,
+                cached: fromCache,
+                duration: Date.now() - startedAt
+            });
+
+            return instance;
+        } catch (error) {
+            this.emit('resolve:error', {
+                token: identifier,
+                target: registration.target,
+                lifecycle: registration.lifecycle,
+                path: nextPath.slice(),
+                depth,
+                options: snapshotOptions,
+                error: error as Error
+            });
+            throw error;
+        }
+    }
+
+    private resolveByLifecycle(
+        registration: InternalRegistration,
+        options: ResolveOptions,
+        path: string[]
+    ): { instance: unknown; fromCache: boolean } {
         switch (registration.lifecycle) {
             case Lifecycle.Singleton:
-                return this.resolveSingleton(registration, options, nextPath);
+                return this.resolveSingleton(registration, options, path);
             case Lifecycle.Scoped: {
                 const sessionId = options.sessionId ?? this.sessionStorage.getStore()?.sessionId;
                 if (!sessionId) {
@@ -205,11 +381,14 @@ export class Container {
                         `Scoped service "${registration.token}" resolved without an active session. Use createSession/runInSession.`
                     );
                 }
-                return this.resolveScoped(registration, sessionId, options, nextPath);
+                return this.resolveScoped(registration, sessionId, options, path);
             }
             case Lifecycle.Transient:
             default:
-                return this.instantiate(registration, options, nextPath, registration.lifecycle);
+                return {
+                    instance: this.instantiate(registration, options, path, registration.lifecycle),
+                    fromCache: false
+                };
         }
     }
 
@@ -217,8 +396,9 @@ export class Container {
         registration: InternalRegistration,
         options: ResolveOptions,
         path: string[]
-    ): unknown {
-        if (!registration.singletonInstance) {
+    ): { instance: unknown; fromCache: boolean } {
+        const cached = Boolean(registration.singletonInstance);
+        if (!cached) {
             registration.singletonInstance = this.instantiate(
                 registration,
                 options,
@@ -226,7 +406,7 @@ export class Container {
                 registration.lifecycle
             );
         }
-        return registration.singletonInstance;
+        return { instance: registration.singletonInstance, fromCache: cached };
     }
 
     private resolveScoped(
@@ -234,7 +414,7 @@ export class Container {
         sessionId: string,
         options: ResolveOptions,
         path: string[]
-    ): unknown {
+    ): { instance: unknown; fromCache: boolean } {
         const session = this.sessions.get(sessionId);
         if (!session) {
             throw new Error(`Session "${sessionId}" not found when resolving scoped service.`);
@@ -249,7 +429,9 @@ export class Container {
 
         const effectiveScope = options.scope ?? info?.scope;
 
-        if (!session.has(registration.token)) {
+        const cached = session.has(registration.token);
+
+        if (!cached) {
             const scopedOptions =
                 options.sessionId === sessionId && options.scope === effectiveScope
                     ? options
@@ -263,7 +445,7 @@ export class Container {
             session.set(registration.token, instance);
         }
 
-        return session.get(registration.token);
+        return { instance: session.get(registration.token), fromCache: cached };
     }
 
     private instantiate(
@@ -316,7 +498,17 @@ export class Container {
             instance = new registration.target(...args);
         }
 
-        return this.instantiateWithProperties(instance, options, path, parentLifecycle);
+        const hydrated = this.instantiateWithProperties(instance, options, path, parentLifecycle);
+
+        this.emit('instantiate', {
+            token: registration.token,
+            target: registration.target,
+            lifecycle: registration.lifecycle,
+            path: path.slice(),
+            depth: path.length - 1
+        });
+
+        return hydrated;
     }
 
     private instantiateWithProperties(
