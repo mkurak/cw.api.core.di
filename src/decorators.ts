@@ -4,6 +4,7 @@ import {
     appendActionMiddlewares,
     ensureMiddlewareContract,
     markParameterOptional,
+    markPropertyOptional,
     setControllerMetadata,
     setMiddlewareMetadata,
     setParameterInjection,
@@ -60,13 +61,26 @@ export function Inject(token: ResolveToken): ParameterDecorator & PropertyDecora
     return decorator as ParameterDecorator & PropertyDecorator;
 }
 
-export function Optional(): ParameterDecorator {
-    return (target, propertyKey, parameterIndex) => {
-        if (typeof parameterIndex !== 'number' || propertyKey !== undefined) {
-            throw new Error('@Optional can only be used on constructor parameters.');
+export function Optional(): ParameterDecorator & PropertyDecorator {
+    return ((target: object, propertyKey?: string | symbol, parameterIndex?: number) => {
+        if (typeof parameterIndex === 'number') {
+            if (propertyKey !== undefined) {
+                throw new Error('@Optional cannot be used on method parameters.');
+            }
+            markParameterOptional(target as unknown as InjectableClass, parameterIndex);
+            return;
         }
-        markParameterOptional(target as unknown as InjectableClass, parameterIndex);
-    };
+
+        if (propertyKey !== undefined) {
+            markPropertyOptional(
+                (target as { constructor: InjectableClass }).constructor,
+                propertyKey
+            );
+            return;
+        }
+
+        throw new Error('@Optional usage is invalid.');
+    }) as ParameterDecorator & PropertyDecorator;
 }
 
 interface MiddlewareDecoratorOptions extends InjectableOptions {

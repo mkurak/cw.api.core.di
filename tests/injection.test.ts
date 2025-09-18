@@ -112,6 +112,39 @@ describe('Constructor injection', () => {
         expect(controller.logger).toBeInstanceOf(Logger);
     });
 
+    it('allows optional property injection to remain undefined when missing', () => {
+        const OPTIONAL_TOKEN = 'optional-missing';
+
+        @Injectable()
+        class OptionalPropertyHolder {
+            @Inject(OPTIONAL_TOKEN)
+            @Optional()
+            public maybe?: unknown;
+        }
+
+        const container = getContainer();
+        const holder = container.resolve(OptionalPropertyHolder);
+        expect(holder.maybe).toBeUndefined();
+    });
+
+    it('resolves optional property when dependency is available', () => {
+        const OPTIONAL_TOKEN = 'optional-present';
+
+        @Injectable({ name: OPTIONAL_TOKEN })
+        class OptionalDependency {}
+
+        @Injectable()
+        class OptionalPropertyHolder {
+            @Optional()
+            @Inject(OPTIONAL_TOKEN)
+            public maybe?: OptionalDependency;
+        }
+
+        const container = getContainer();
+        const holder = container.resolve(OptionalPropertyHolder);
+        expect(holder.maybe).toBeInstanceOf(OptionalDependency);
+    });
+
     it('detects circular dependencies without forwardRef', () => {
         class ServiceA {
             // eslint-disable-next-line @typescript-eslint/no-unused-vars

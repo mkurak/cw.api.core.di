@@ -10,6 +10,7 @@ import type {
 const PARAM_INJECT_KEY = Symbol.for('cw.api.core.di:paraminject');
 const OPTIONAL_PARAM_KEY = Symbol.for('cw.api.core.di:paramoptional');
 const PROPERTY_INJECT_KEY = Symbol.for('cw.api.core.di:propertyinject');
+const PROPERTY_OPTIONAL_KEY = Symbol.for('cw.api.core.di:propertyoptional');
 const ACTION_MIDDLEWARES_KEY = Symbol.for('cw.api.core.di:actionmiddlewares');
 const MIDDLEWARE_META_KEY = Symbol.for('cw.api.core.di:middlewaremeta');
 const CONTROLLER_META_KEY = Symbol.for('cw.api.core.di:controller');
@@ -73,6 +74,22 @@ export function getPropertyInjections(target: InjectableClass): PropertyMetadata
     return Reflect.getMetadata(PROPERTY_INJECT_KEY, target.prototype) as
         | PropertyMetadata
         | undefined;
+}
+
+export function markPropertyOptional(target: InjectableClass, propertyKey: string | symbol): void {
+    const existing =
+        (Reflect.getOwnMetadata(PROPERTY_OPTIONAL_KEY, target.prototype) as
+            | Set<string | symbol>
+            | undefined) ?? new Set<string | symbol>();
+    existing.add(propertyKey);
+    Reflect.defineMetadata(PROPERTY_OPTIONAL_KEY, existing, target.prototype);
+}
+
+export function isPropertyOptional(target: InjectableClass, propertyKey: string | symbol): boolean {
+    const set = Reflect.getMetadata(PROPERTY_OPTIONAL_KEY, target.prototype) as
+        | Set<string | symbol>
+        | undefined;
+    return set?.has(propertyKey) ?? false;
 }
 
 export function appendActionMiddlewares(

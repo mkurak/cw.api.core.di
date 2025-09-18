@@ -17,7 +17,12 @@ import {
     isForwardRef
 } from './types';
 import type { ModuleRef } from './module';
-import { getOptionalParameters, getParameterInjections, getPropertyInjections } from './metadata';
+import {
+    getOptionalParameters,
+    getParameterInjections,
+    getPropertyInjections,
+    isPropertyOptional
+} from './metadata';
 
 interface InternalRegistration extends Registration {
     singletonInstance?: unknown;
@@ -582,6 +587,7 @@ export class Container {
 
         for (const [key, token] of properties.entries()) {
             const designType = Reflect.getMetadata('design:type', ctor.prototype, key);
+            const optional = isPropertyOptional(ctor, key);
             const value = this.resolvePropertyDependency(
                 token,
                 designType,
@@ -589,7 +595,8 @@ export class Container {
                 path,
                 parentLifecycle,
                 ctor.name,
-                key
+                key,
+                optional
             );
             (instance as Record<string | symbol, unknown>)[key] = value;
         }
@@ -604,12 +611,16 @@ export class Container {
         path: string[],
         parentLifecycle: Lifecycle,
         ownerName: string,
-        propertyKey: string | symbol
+        propertyKey: string | symbol,
+        isOptional: boolean
     ): unknown {
         const { token: unwrappedToken, usedForward } = this.unwrapToken(token);
         const registration = this.findRegistration(unwrappedToken);
 
         if (!registration) {
+            if (isOptional) {
+                return undefined;
+            }
             throw new Error(
                 `No registration found for property "${String(propertyKey)}" on service "${ownerName}".`
             );
