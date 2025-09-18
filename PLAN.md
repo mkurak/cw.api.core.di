@@ -7,8 +7,8 @@
 
 ### Upcoming Enhancements
 
-1. Add scope context API (e.g. `runInScope`, named scopes) to streamline scoped lifecycle usage.
-2. Introduce module/bundle registration system for grouping related services.
+1. ✅ Add scope context API (`runInScope`, named scopes) to streamline scoped lifecycle usage.
+2. ✅ Introduce module/bundle registration system for grouping related services.
 3. Extend controller/action metadata with route definitions and auto router wiring.
 4. Provide container events/logging for resolution traces and debugging.
 5. Support async `dispose` when tearing down scoped/singleton services.

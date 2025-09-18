@@ -11,6 +11,7 @@ import {
     SessionInfo,
     isForwardRef
 } from './types';
+import type { ModuleRef } from './module';
 import { getOptionalParameters, getParameterInjections, getPropertyInjections } from './metadata';
 
 interface InternalRegistration extends Registration {
@@ -39,6 +40,7 @@ export class Container {
     private sessionInfos = new Map<string, SessionInfo>();
     private readonly sessionStorage = new AsyncLocalStorage<ScopeContext>();
     private sessionCounter = 0;
+    private registeredModules = new Set<ModuleRef>();
 
     register(target: InjectableClass, options: InjectableOptions = {}): Registration {
         const token = generateToken(target, options);
@@ -66,6 +68,15 @@ export class Container {
         this.registrationsByCtor.set(target, registration);
 
         return registration;
+    }
+
+    registerModule(module: ModuleRef): void {
+        if (this.registeredModules.has(module)) {
+            return;
+        }
+
+        this.registeredModules.add(module);
+        module.configure(this);
     }
 
     list(type?: ServiceType): Registration[] {
@@ -156,6 +167,7 @@ export class Container {
         this.sessions = new Map();
         this.sessionInfos = new Map();
         this.sessionCounter = 0;
+        this.registeredModules = new Set<ModuleRef>();
     }
 
     private resolveRegistration(
