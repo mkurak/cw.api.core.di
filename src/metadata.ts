@@ -18,7 +18,16 @@ const ACTION_ROUTE_META_KEY = Symbol.for('cw.api.core.di:actionroute');
 export type InjectMetadata = Record<number, ResolveToken>;
 export type OptionalMetadata = Set<number>;
 export type PropertyMetadata = Map<string | symbol, ResolveToken>;
-export type ActionMiddlewareMetadata = ResolveToken[];
+export type ActionMiddlewareMap = Map<string | symbol, ResolveToken[]>;
+export type ActionRouteMap = Map<string | symbol, RouteMetadata>;
+
+function assertControllerRegistered(controller: InjectableClass): void {
+    if (!Reflect.hasMetadata(CONTROLLER_META_KEY, controller)) {
+        throw new Error(
+            `Class "${controller.name}" must be decorated with @Controller to access route metadata.`
+        );
+    }
+}
 
 export function setParameterInjection(
     target: InjectableClass,
@@ -66,29 +75,38 @@ export function getPropertyInjections(target: InjectableClass): PropertyMetadata
         | undefined;
 }
 
-export function appendActionMiddlewares(target: InjectableClass, tokens: ResolveToken[]): void {
+export function appendActionMiddlewares(
+    controller: InjectableClass,
+    propertyKey: string | symbol,
+    tokens: ResolveToken[]
+): void {
     if (!tokens || tokens.length === 0) {
         return;
     }
 
     const existing =
-        (Reflect.getOwnMetadata(ACTION_MIDDLEWARES_KEY, target) as
-            | ActionMiddlewareMetadata
-            | undefined) ?? [];
-    const merged = existing.slice();
+        (Reflect.getOwnMetadata(ACTION_MIDDLEWARES_KEY, controller) as
+            | ActionMiddlewareMap
+            | undefined) ?? new Map<string | symbol, ResolveToken[]>();
+    const current = existing.get(propertyKey) ?? [];
+    const next = current.slice();
     for (const token of tokens) {
-        merged.push(token);
+        next.push(token);
     }
-    Reflect.defineMetadata(ACTION_MIDDLEWARES_KEY, merged, target);
+    existing.set(propertyKey, next);
+    Reflect.defineMetadata(ACTION_MIDDLEWARES_KEY, existing, controller);
 }
 
 export function getActionMiddlewares(
-    target: InjectableClass
-): ActionMiddlewareMetadata | undefined {
-    const result = Reflect.getMetadata(ACTION_MIDDLEWARES_KEY, target) as
-        | ActionMiddlewareMetadata
+    controller: InjectableClass,
+    propertyKey: string | symbol
+): ResolveToken[] | undefined {
+    assertControllerRegistered(controller);
+    const map = Reflect.getMetadata(ACTION_MIDDLEWARES_KEY, controller) as
+        | ActionMiddlewareMap
         | undefined;
-    return result ? result.slice() : undefined;
+    const tokens = map?.get(propertyKey);
+    return tokens ? tokens.slice() : undefined;
 }
 
 export function setMiddlewareMetadata(
@@ -118,10 +136,45 @@ export function getControllerMetadata(target: InjectableClass): ControllerMetada
     return Reflect.getMetadata(CONTROLLER_META_KEY, target) as ControllerMetadata | undefined;
 }
 
-export function setActionRoute(target: InjectableClass, metadata: RouteMetadata): void {
-    Reflect.defineMetadata(ACTION_ROUTE_META_KEY, metadata, target);
+export function setActionRoute(
+    controller: InjectableClass,
+    propertyKey: string | symbol,
+    metadata: RouteMetadata
+): void {
+    const existing =
+        (Reflect.getOwnMetadata(ACTION_ROUTE_META_KEY, controller) as ActionRouteMap | undefined) ??
+        new Map<string | symbol, RouteMetadata>();
+    existing.set(propertyKey, { ...metadata });
+    Reflect.defineMetadata(ACTION_ROUTE_META_KEY, existing, controller);
 }
 
-export function getActionRoute(target: InjectableClass): RouteMetadata | undefined {
-    return Reflect.getMetadata(ACTION_ROUTE_META_KEY, target) as RouteMetadata | undefined;
+export function getActionRoute(
+    controller: InjectableClass,
+    propertyKey: string | symbol
+): RouteMetadata | undefined {
+    assertControllerRegistered(controller);
+    const map = Reflect.getMetadata(ACTION_ROUTE_META_KEY, controller) as
+        | ActionRouteMap
+        | undefined;
+    const route = map?.get(propertyKey);
+    return route ? { ...route } : undefined;
+}
+
+export function getControllerRoutes(controller: InjectableClass): Array<{
+    propertyKey: string | symbol;
+    route: RouteMetadata;
+}> {
+    assertControllerRegistered(controller);
+    const map = Reflect.getMetadata(ACTION_ROUTE_META_KEY, controller) as
+        | ActionRouteMap
+        | undefined;
+
+    if (!map) {
+        return [];
+    }
+
+    return Array.from(map.entries()).map(([propertyKey, route]) => ({
+        propertyKey,
+        route: { ...route }
+    }));
 }

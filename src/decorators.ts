@@ -25,10 +25,6 @@ export function Injectable(options: InjectableOptions = {}): ClassDecorator {
         const container = getContainer();
         const type = options.type ?? ServiceType.Service;
 
-        if (type === ServiceType.Action && options.middlewares) {
-            appendActionMiddlewares(target as unknown as InjectableClass, options.middlewares);
-        }
-
         if (type === ServiceType.Middleware) {
             ensureMiddlewareContract(target as unknown as InjectableClass);
             if (!options.lifecycle) {
@@ -115,9 +111,17 @@ function createMiddlewareDecorator(scope: 'route' | 'global') {
 export const RouteMiddleware = createMiddlewareDecorator('route');
 export const GlobalMiddleware = createMiddlewareDecorator('global');
 
-export function UseMiddleware(...tokens: ResolveToken[]): ClassDecorator {
-    return (target) => {
-        appendActionMiddlewares(target as unknown as InjectableClass, tokens);
+export function UseMiddleware(...tokens: ResolveToken[]): MethodDecorator {
+    return (target, propertyKey, descriptor) => {
+        if (typeof propertyKey === 'undefined') {
+            throw new Error('@UseMiddleware can only be applied to methods.');
+        }
+
+        if (!descriptor || typeof descriptor.value !== 'function') {
+            throw new Error('@UseMiddleware can only decorate instance methods.');
+        }
+
+        appendActionMiddlewares(target.constructor as InjectableClass, propertyKey, tokens);
     };
 }
 
@@ -146,7 +150,7 @@ export function Controller(options: ControllerOptions): ClassDecorator {
     };
 }
 
-export function Route(metadata: RouteOptions): ClassDecorator {
+export function Route(metadata: RouteOptions): MethodDecorator {
     const { method, path } = metadata;
     if (!method || !path) {
         throw new Error('Route decorator requires both method and path.');
@@ -154,8 +158,17 @@ export function Route(metadata: RouteOptions): ClassDecorator {
 
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
-    return (target) => {
-        setActionRoute(target as unknown as InjectableClass, {
+    return (target, propertyKey, descriptor) => {
+        if (typeof propertyKey === 'undefined') {
+            throw new Error('@Route can only be applied to controller methods.');
+        }
+
+        if (!descriptor || typeof descriptor.value !== 'function') {
+            throw new Error('@Route can only decorate instance methods.');
+        }
+
+        const controller = target.constructor as InjectableClass;
+        setActionRoute(controller, propertyKey, {
             ...metadata,
             path: normalizedPath
         });

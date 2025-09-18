@@ -6,7 +6,10 @@ import {
     ServiceType,
     Lifecycle,
     getActionMiddlewares,
-    getMiddlewareMetadata
+    getMiddlewareMetadata,
+    Controller,
+    Route,
+    getControllerMetadata
 } from '../src';
 import { getContainer, resetContainer } from '../src/instance';
 import { MiddlewareHandler } from '../src/types';
@@ -58,31 +61,31 @@ describe('Middleware decorators', () => {
         }).toThrow(/handle method/);
     });
 
-    it('collects action middlewares from options and decorator', () => {
-        const LOCAL_TOKEN = 'localMiddleware';
-        const EXTRA_TOKEN = 'extraMiddleware';
+    it('collects route middlewares via decorator and controller options', () => {
+        const CONTROLLER_TOKEN = 'controller.middleware';
+        const ROUTE_TOKEN = 'route.middleware';
 
-        @Injectable({ type: ServiceType.Middleware, name: LOCAL_TOKEN })
-        class LocalMiddleware implements MiddlewareHandler {
+        @Injectable({ type: ServiceType.Middleware, name: CONTROLLER_TOKEN })
+        class ControllerMiddleware implements MiddlewareHandler {
             handle(): void {}
         }
-        void LocalMiddleware;
+        void ControllerMiddleware;
 
-        @Injectable({ type: ServiceType.Middleware, name: EXTRA_TOKEN })
-        class ExtraMiddleware implements MiddlewareHandler {
+        @Injectable({ type: ServiceType.Middleware, name: ROUTE_TOKEN })
+        class RouteSpecificMiddleware implements MiddlewareHandler {
             handle(): void {}
         }
-        void ExtraMiddleware;
+        void RouteSpecificMiddleware;
 
-        @UseMiddleware(EXTRA_TOKEN)
-        @Injectable({ type: ServiceType.Action, middlewares: [LOCAL_TOKEN] })
-        class ActionWithMiddleware {}
+        @Controller({ basePath: '/demo', middlewares: [CONTROLLER_TOKEN] })
+        class DemoController {
+            @UseMiddleware(ROUTE_TOKEN)
+            @Route({ method: 'GET', path: '/' })
+            handler(): void {}
+        }
 
-        const middlewares = getActionMiddlewares(
-            ActionWithMiddleware as unknown as typeof ActionWithMiddleware
-        );
-
-        expect(middlewares).toEqual([LOCAL_TOKEN, EXTRA_TOKEN]);
+        expect(getControllerMetadata(DemoController)?.middlewares).toEqual([CONTROLLER_TOKEN]);
+        expect(getActionMiddlewares(DemoController, 'handler')).toEqual([ROUTE_TOKEN]);
     });
 
     it('defaults middleware lifecycle to transient', () => {

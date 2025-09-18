@@ -29,7 +29,8 @@ export {
     getActionMiddlewares,
     getMiddlewareMetadata,
     getControllerMetadata,
-    getActionRoute
+    getActionRoute,
+    getControllerRoutes
 } from './metadata';
 export { discover, type DiscoveryOptions } from './discovery';
 export { getContainer, resetContainer } from './instance';

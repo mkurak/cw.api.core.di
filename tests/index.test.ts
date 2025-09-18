@@ -10,6 +10,7 @@ describe('Public API surface', () => {
         expect(typeof api.UseMiddleware).toBe('function');
         expect(typeof api.ForwardRefInject).toBe('function');
         expect(typeof api.getActionMiddlewares).toBe('function');
+        expect(typeof api.getControllerRoutes).toBe('function');
         expect(typeof api.getMiddlewareMetadata).toBe('function');
         expect(typeof api.forwardRef).toBe('function');
         expect(Object.values(api.ServiceType)).toContain('entity');
