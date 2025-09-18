@@ -32,10 +32,23 @@ interface ScopeContext {
 
 type ListenerSet = Set<ContainerEventListener<ContainerEventName>>;
 
-const debugSink =
-    typeof console !== 'undefined' && typeof console.debug === 'function'
-        ? console.debug.bind(console)
-        : console.log.bind(console);
+function isPromiseLike<T = unknown>(value: unknown): value is PromiseLike<T> {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'then' in value &&
+        typeof (value as { then: unknown }).then === 'function'
+    );
+}
+
+function debugSink(...args: unknown[]): void {
+    if (typeof console === 'undefined') {
+        return;
+    }
+    const fn = typeof console.debug === 'function' ? console.debug : console.log;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fn as (...params: any[]) => void).apply(console, args as unknown[]);
+}
 
 const DEFAULT_TRACE_SINK = (entry: ContainerLogEntry): void => {
     const prefix = `[container:${entry.event}]`;
@@ -197,12 +210,13 @@ export class Container {
         const result = this.sessionStorage.run(context, () => callback());
 
         if (result instanceof Promise) {
-            return result.finally(() => {
-                this.destroySession(sessionInfo.id);
-            });
+            return result.finally(() => this.destroySession(sessionInfo.id));
         }
 
-        this.destroySession(sessionInfo.id);
+        const cleanup = this.destroySession(sessionInfo.id);
+        if (cleanup && isPromiseLike(cleanup)) {
+            return cleanup.then(() => result);
+        }
         return result;
     }
 
@@ -210,26 +224,65 @@ export class Container {
         return this.runInSession(callback, existingSessionId, scopeName);
     }
 
-    destroySession(sessionId: string): void {
+    destroySession(sessionId: string): Promise<void> | void {
         const instances = this.sessions.get(sessionId);
         const scope = this.sessionInfos.get(sessionId)?.scope;
+        const asyncDisposals: Promise<void>[] = [];
+
         if (instances) {
             for (const [token, instance] of instances.entries()) {
                 this.emit('dispose', { token, sessionId, scope, instance });
-                this.disposeIfPossible(instance);
+                const result = this.disposeAsyncIfPossible(instance);
+                if (result && isPromiseLike(result)) {
+                    asyncDisposals.push(Promise.resolve(result).catch(() => undefined));
+                }
             }
         }
+
         this.sessions.delete(sessionId);
         this.sessionInfos.delete(sessionId);
+
+        if (asyncDisposals.length > 0) {
+            return Promise.all(asyncDisposals).then(() => undefined);
+        }
     }
 
-    clear(): void {
+    clear(): Promise<void> | void {
+        const disposals: Promise<void>[] = [];
+
+        for (const sessionId of Array.from(this.sessions.keys())) {
+            const result = this.destroySession(sessionId);
+            if (result && isPromiseLike(result)) {
+                disposals.push(Promise.resolve(result).catch(() => undefined));
+            }
+        }
+
+        for (const registration of this.registrationsByToken.values()) {
+            if (registration.singletonInstance) {
+                this.emit('dispose', {
+                    token: registration.token,
+                    sessionId: undefined,
+                    scope: undefined,
+                    instance: registration.singletonInstance
+                });
+                const result = this.disposeAsyncIfPossible(registration.singletonInstance);
+                if (result && isPromiseLike(result)) {
+                    disposals.push(Promise.resolve(result).catch(() => undefined));
+                }
+                registration.singletonInstance = undefined;
+            }
+        }
+
         this.registrationsByToken = new Map();
         this.registrationsByCtor = new WeakMap();
         this.sessions = new Map();
         this.sessionInfos = new Map();
         this.sessionCounter = 0;
         this.registeredModules = new Set<ModuleRef>();
+
+        if (disposals.length > 0) {
+            return Promise.all(disposals).then(() => undefined);
+        }
     }
 
     on<K extends ContainerEventName>(event: K, listener: ContainerEventListener<K>): () => void {
@@ -675,15 +728,20 @@ export class Container {
         return normalized;
     }
 
-    private disposeIfPossible(instance: unknown): void {
+    private disposeAsyncIfPossible(instance: unknown): void | Promise<void> {
         if (
             instance &&
             (typeof instance === 'object' || typeof instance === 'function') &&
             'dispose' in instance &&
-            typeof (instance as { dispose: () => void }).dispose === 'function'
+            typeof (instance as { dispose: () => unknown }).dispose === 'function'
         ) {
             try {
-                (instance as { dispose: () => void }).dispose();
+                const result = (instance as { dispose: () => unknown }).dispose();
+                if (result && isPromiseLike(result)) {
+                    return Promise.resolve(result)
+                        .then(() => undefined)
+                        .catch(() => undefined);
+                }
             } catch {
                 // ignore
             }

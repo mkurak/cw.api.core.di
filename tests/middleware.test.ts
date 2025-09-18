@@ -15,8 +15,8 @@ import { getContainer, resetContainer } from '../src/instance';
 import { MiddlewareHandler } from '../src/types';
 
 describe('Middleware decorators', () => {
-    beforeEach(() => {
-        resetContainer();
+    beforeEach(async () => {
+        await resetContainer();
     });
 
     it('registers route middleware with metadata and handle contract', () => {

@@ -13,8 +13,8 @@ import {
 } from '../src';
 
 describe('Controller and route metadata', () => {
-    beforeEach(() => {
-        resetContainer();
+    beforeEach(async () => {
+        await resetContainer();
     });
 
     it('captures controller metadata and registers controller', () => {

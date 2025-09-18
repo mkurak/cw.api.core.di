@@ -5,8 +5,8 @@ import { Lifecycle } from '../src/types';
 import { createModule, registerModules } from '../src';
 
 describe('Module registration', () => {
-    beforeEach(() => {
-        resetContainer();
+    beforeEach(async () => {
+        await resetContainer();
     });
 
     it('registers module providers and imports', () => {

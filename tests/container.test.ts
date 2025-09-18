@@ -3,8 +3,8 @@ import { getContainer, resetContainer } from '../src/instance';
 import { Lifecycle, ServiceType } from '../src/types';
 
 describe('Container registration and listing', () => {
-    beforeEach(() => {
-        resetContainer();
+    beforeEach(async () => {
+        await resetContainer();
     });
 
     it('registers classes via decorator with defaults', () => {

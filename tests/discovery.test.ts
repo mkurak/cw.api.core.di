@@ -23,8 +23,8 @@ describe('Discovery', () => {
         });
     });
 
-    beforeEach(() => {
-        resetContainer();
+    beforeEach(async () => {
+        await resetContainer();
     });
 
     afterAll(() => {

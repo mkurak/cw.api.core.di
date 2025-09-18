@@ -3,8 +3,8 @@ import { getContainer, resetContainer } from '../src/instance';
 import { Lifecycle } from '../src/types';
 
 describe('Lifecycles', () => {
-    beforeEach(() => {
-        resetContainer();
+    beforeEach(async () => {
+        await resetContainer();
     });
 
     it('returns same instance for singleton services', () => {
@@ -31,7 +31,7 @@ describe('Lifecycles', () => {
         expect(a).not.toBe(b);
     });
 
-    it('reuses scoped instances within the same session', () => {
+    it('reuses scoped instances within the same session', async () => {
         @Injectable({ lifecycle: Lifecycle.Scoped, name: 'scoped' })
         class ScopedService {
             value = Math.random();
@@ -48,8 +48,8 @@ describe('Lifecycles', () => {
         expect(a).toBe(b);
         expect(a).not.toBe(c);
 
-        container.destroySession(session.id);
-        container.destroySession(otherSession.id);
+        await container.destroySession(session.id);
+        await container.destroySession(otherSession.id);
     });
 
     it('throws when resolving scoped service without session context', () => {

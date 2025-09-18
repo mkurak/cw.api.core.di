@@ -10,8 +10,8 @@ import {
 import { resetContainer } from '../src/instance';
 
 describe('Decorator validation', () => {
-    beforeEach(() => {
-        resetContainer();
+    beforeEach(async () => {
+        await resetContainer();
     });
 
     it('@UseMiddleware requires a valid method name', () => {

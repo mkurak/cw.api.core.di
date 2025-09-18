@@ -5,8 +5,8 @@ import { Lifecycle, InjectableClass } from '../src/types';
 import { setParameterInjection } from '../src/metadata';
 
 describe('Constructor injection', () => {
-    beforeEach(() => {
-        resetContainer();
+    beforeEach(async () => {
+        await resetContainer();
     });
 
     it('auto-resolves dependencies by constructor types', () => {
@@ -43,7 +43,7 @@ describe('Constructor injection', () => {
         expect(service.repo).toBeInstanceOf(CustomRepository);
     });
 
-    it('propagates session info to dependencies', () => {
+    it('propagates session info to dependencies', async () => {
         @Injectable({ lifecycle: Lifecycle.Scoped })
         class ScopedRepo {}
 
@@ -59,7 +59,7 @@ describe('Constructor injection', () => {
         });
         const repoA = container.resolve<ScopedRepo>(ScopedRepo, { sessionId: session.id });
         expect(serviceA.repo).toBe(repoA);
-        container.destroySession(session.id);
+        await container.destroySession(session.id);
     });
 
     it('throws when dependency cannot be inferred', () => {

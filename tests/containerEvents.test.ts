@@ -101,4 +101,27 @@ describe('Container events & logging', () => {
         container.resolve(RootService);
         expect(entries).toHaveLength(loggedCount);
     });
+
+    it('default trace sink yazma yollarını tetikler', async () => {
+        const debugSpy = jest.spyOn(console, 'debug').mockImplementation(() => undefined);
+        const container = new Container();
+        container.register(DependencyService);
+        container.register(RootService);
+
+        const detach = container.enableEventLogging();
+
+        await container.runInScope('default-log', async () => {
+            container.resolve(RootService);
+        });
+
+        try {
+            container.resolve('missing-token');
+        } catch {
+            // beklenen hata, log kaydını tetikliyor
+        }
+
+        detach();
+        expect(debugSpy).toHaveBeenCalled();
+        debugSpy.mockRestore();
+    });
 });

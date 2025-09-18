@@ -10,9 +10,13 @@ export function getContainer(): Container {
     return globalScope[GLOBAL_KEY] as Container;
 }
 
-export function resetContainer(): void {
+export function resetContainer(): Promise<void> | void {
     const globalScope = globalThis as Record<PropertyKey, unknown>;
-    if (globalScope[GLOBAL_KEY] instanceof Container) {
-        (globalScope[GLOBAL_KEY] as Container).clear();
+    const existing = globalScope[GLOBAL_KEY];
+    if (existing instanceof Container) {
+        const result = existing.clear();
+        if (result && typeof (result as PromiseLike<void>).then === 'function') {
+            return result;
+        }
     }
 }

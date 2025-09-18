@@ -3,11 +3,11 @@ import { getContainer, resetContainer } from '../src/instance';
 import { Lifecycle } from '../src/types';
 
 describe('Session utilities', () => {
-    beforeEach(() => {
-        resetContainer();
+    beforeEach(async () => {
+        await resetContainer();
     });
 
-    it('returns session info and disposes scoped instances on destroy', () => {
+    it('returns session info and disposes scoped instances on destroy', async () => {
         const disposeSpy = jest.fn();
 
         @Injectable({ lifecycle: Lifecycle.Scoped, name: 'scoped-disposable' })
@@ -27,7 +27,7 @@ describe('Session utilities', () => {
         });
         expect(instance).toBeInstanceOf(ScopedDisposable);
 
-        container.destroySession(session.id);
+        await container.destroySession(session.id);
         expect(disposeSpy).toHaveBeenCalledTimes(1);
     });
 
@@ -65,7 +65,7 @@ describe('Session utilities', () => {
         expect(instance).toBeInstanceOf(ScopedRequest);
     });
 
-    it('runInScope rejects scope mismatches for existing sessions', () => {
+    it('runInScope rejects scope mismatches for existing sessions', async () => {
         @Injectable({ lifecycle: Lifecycle.Scoped, name: 'scoped-job' })
         class ScopedJob {}
 
@@ -77,7 +77,7 @@ describe('Session utilities', () => {
             container.runInScope('request', () => container.resolve('scoped-job'), scope.id)
         ).toThrow('does not match requested scope');
 
-        container.destroySession(scope.id);
+        await container.destroySession(scope.id);
     });
 
     it('resolves by constructor token', () => {
