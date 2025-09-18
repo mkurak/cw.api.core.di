@@ -1,6 +1,6 @@
 {
   "name": "cw.api.core.di",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
@@ -37,5 +37,8 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "reflect-metadata": "^0.2.2"
+  }
 }

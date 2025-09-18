@@ -25,7 +25,8 @@ export interface Registration<T = unknown> {
     target: InjectableClass<T>;
 }
 
-export type InjectableClass<T = unknown> = new (...args: unknown[]) => T;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type InjectableClass<T = unknown> = new (...args: any[]) => T;
 
 export type ResolveToken<T = unknown> = string | InjectableClass<T>;
 

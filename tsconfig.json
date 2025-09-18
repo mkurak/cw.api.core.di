@@ -12,7 +12,8 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "types": ["node", "jest"],
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist"]

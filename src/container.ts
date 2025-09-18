@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
     InjectableClass,
@@ -9,6 +10,7 @@ import {
     ServiceType,
     SessionInfo
 } from './types';
+import { getParameterInjections } from './metadata';
 
 interface InternalRegistration extends Registration {
     singletonInstance?: unknown;
@@ -77,9 +79,9 @@ export class Container {
 
         switch (registration.lifecycle) {
             case Lifecycle.Singleton:
-                return this.resolveSingleton(registration) as T;
+                return this.resolveSingleton(registration, options) as T;
             case Lifecycle.Transient:
-                return this.instantiate(registration) as T;
+                return this.instantiate(registration, options) as T;
             case Lifecycle.Scoped: {
                 const sessionId = options.sessionId ?? this.sessionStorage.getStore();
                 if (!sessionId) {
@@ -90,7 +92,7 @@ export class Container {
                 return this.resolveScoped(registration, sessionId) as T;
             }
             default:
-                return this.instantiate(registration) as T;
+                return this.instantiate(registration, options) as T;
         }
     }
 
@@ -154,13 +156,38 @@ export class Container {
         this.sessionCounter = 0;
     }
 
-    private instantiate(registration: InternalRegistration): unknown {
-        return new registration.target();
+    private instantiate(registration: InternalRegistration, options: ResolveOptions = {}): unknown {
+        const paramTypes = Reflect.getMetadata('design:paramtypes', registration.target) as
+            | Array<InjectableClass | undefined>
+            | undefined;
+        const injections = getParameterInjections(registration.target);
+
+        if (!paramTypes || paramTypes.length === 0) {
+            return new registration.target();
+        }
+
+        const args = paramTypes.map((paramType, index) => {
+            const override = injections?.[index];
+            const token = override ?? paramType;
+
+            if (!token || token === Object || token === Function) {
+                throw new Error(
+                    `Cannot resolve constructor parameter at position ${index} for service "${registration.token}". Use @Inject to specify a token.`
+                );
+            }
+
+            return this.resolve(token as ResolveToken, options);
+        });
+
+        return new registration.target(...args);
     }
 
-    private resolveSingleton(registration: InternalRegistration): unknown {
+    private resolveSingleton(
+        registration: InternalRegistration,
+        options: ResolveOptions = {}
+    ): unknown {
         if (!registration.singletonInstance) {
-            registration.singletonInstance = this.instantiate(registration);
+            registration.singletonInstance = this.instantiate(registration, options);
         }
         return registration.singletonInstance;
     }
@@ -172,7 +199,7 @@ export class Container {
         }
 
         if (!session.has(registration.token)) {
-            session.set(registration.token, this.instantiate(registration));
+            session.set(registration.token, this.instantiate(registration, { sessionId }));
         }
 
         return session.get(registration.token);
