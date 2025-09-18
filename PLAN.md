@@ -13,4 +13,4 @@
 4. ✅ Provide container events/logging for resolution traces and debugging.
 5. ✅ Support async `dispose` when tearing down scoped/singleton services.
 6. ✅ Allow property injection to be marked optional similar to constructor parameters.
-7. Explore nested (child) containers for hierarchical overrides.
+7. ✅ Explore nested (child) containers for hierarchical overrides.

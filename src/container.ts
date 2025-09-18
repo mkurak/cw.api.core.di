@@ -111,6 +111,7 @@ function generateToken(target: InjectableClass, options: InjectableOptions): str
 }
 
 export class Container {
+    private readonly parent?: Container;
     private registrationsByToken = new Map<string, InternalRegistration>();
     private registrationsByCtor = new WeakMap<InjectableClass, InternalRegistration>();
     private sessions = new Map<string, InstanceMap>();
@@ -119,6 +120,10 @@ export class Container {
     private sessionCounter = 0;
     private registeredModules = new Set<ModuleRef>();
     private listeners = new Map<ContainerEventName, ListenerSet>();
+
+    constructor(parent?: Container) {
+        this.parent = parent;
+    }
 
     register(target: InjectableClass, options: InjectableOptions = {}): Registration {
         const token = generateToken(target, options);
@@ -158,16 +163,29 @@ export class Container {
     }
 
     list(type?: ServiceType): Registration[] {
-        const registrations = Array.from(this.registrationsByToken.values());
-        if (!type) {
-            return registrations;
+        const aggregated = new Map<string, Registration>();
+
+        if (this.parent) {
+            for (const registration of this.parent.list(type)) {
+                aggregated.set(registration.token, registration);
+            }
         }
-        return registrations.filter((reg) => reg.type === type);
+
+        for (const registration of this.registrationsByToken.values()) {
+            if (!type || registration.type === type) {
+                aggregated.set(registration.token, registration);
+            }
+        }
+
+        return Array.from(aggregated.values());
     }
 
     resolve<T>(token: ResolveToken<T>, options: ResolveOptions = {}): T {
         const registration = this.findRegistration(token);
         if (!registration) {
+            if (this.parent) {
+                return this.parent.resolve(token, options);
+            }
             throw new Error(`No registration found for token: ${this.describeToken(token)}`);
         }
 
@@ -290,6 +308,10 @@ export class Container {
         }
     }
 
+    createChild(): Container {
+        return new Container(this);
+    }
+
     on<K extends ContainerEventName>(event: K, listener: ContainerEventListener<K>): () => void {
         let set = this.listeners.get(event);
         if (!set) {
@@ -347,10 +369,16 @@ export class Container {
     private emit<K extends ContainerEventName>(event: K, payload: ContainerEventMap[K]): void {
         const set = this.listeners.get(event);
         if (!set || set.size === 0) {
+            if (this.parent) {
+                this.parent.emit(event, payload);
+            }
             return;
         }
         for (const listener of Array.from(set)) {
             (listener as ContainerEventListener<K>)(payload);
+        }
+        if (this.parent) {
+            this.parent.emit(event, payload);
         }
     }
 

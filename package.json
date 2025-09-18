@@ -1,6 +1,6 @@
 {
   "name": "cw.api.core.di",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
