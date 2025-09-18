@@ -6,6 +6,6 @@ export {
     type ResolveOptions
 } from './types';
 export { Container } from './container';
-export { Injectable, Inject } from './decorators';
+export { Injectable, Inject, Optional } from './decorators';
 export { discover, type DiscoveryOptions } from './discovery';
 export { getContainer, resetContainer } from './instance';

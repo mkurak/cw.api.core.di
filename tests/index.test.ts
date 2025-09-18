@@ -4,6 +4,7 @@ describe('Public API surface', () => {
     it('exposes expected exports', () => {
         expect(typeof api.Injectable).toBe('function');
         expect(typeof api.Inject).toBe('function');
+        expect(typeof api.Optional).toBe('function');
         expect(typeof api.getContainer).toBe('function');
         expect(Object.values(api.ServiceType)).toContain('entity');
     });

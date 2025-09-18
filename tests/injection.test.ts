@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '../src/decorators';
+import { Injectable, Inject, Optional } from '../src/decorators';
 import { getContainer, resetContainer } from '../src/instance';
 import { Lifecycle } from '../src/types';
 
@@ -74,5 +74,41 @@ describe('Constructor injection', () => {
 
         const container = getContainer();
         expect(() => container.resolve(Consumer)).toThrow('Cannot resolve constructor parameter');
+    });
+
+    it('allows optional parameters to resolve as undefined', () => {
+        class OptionalDependency {}
+
+        @Injectable({ lifecycle: Lifecycle.Transient })
+        class OptionalService {
+            constructor(@Optional() public dep?: OptionalDependency) {}
+        }
+
+        const container = getContainer();
+        const service = container.resolve(OptionalService);
+        expect(service.dep).toBeUndefined();
+
+        container.register(OptionalDependency as unknown as typeof OptionalDependency, {
+            lifecycle: Lifecycle.Singleton
+        });
+        const serviceWithDep = container.resolve(OptionalService);
+        expect(serviceWithDep.dep).toBeInstanceOf(OptionalDependency);
+    });
+
+    it('injects properties decorated with @Inject', () => {
+        const TOKEN = 'logger';
+
+        @Injectable({ name: TOKEN })
+        class Logger {}
+
+        @Injectable()
+        class Controller {
+            @Inject(TOKEN)
+            public logger!: Logger;
+        }
+
+        const container = getContainer();
+        const controller = container.resolve(Controller);
+        expect(controller.logger).toBeInstanceOf(Logger);
     });
 });

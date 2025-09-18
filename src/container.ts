@@ -1,4 +1,3 @@
-import 'reflect-metadata';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
     InjectableClass,
@@ -10,7 +9,7 @@ import {
     ServiceType,
     SessionInfo
 } from './types';
-import { getParameterInjections } from './metadata';
+import { getOptionalParameters, getParameterInjections, getPropertyInjections } from './metadata';
 
 interface InternalRegistration extends Registration {
     singletonInstance?: unknown;
@@ -161,9 +160,10 @@ export class Container {
             | Array<InjectableClass | undefined>
             | undefined;
         const injections = getParameterInjections(registration.target);
+        const optionals = getOptionalParameters(registration.target);
 
         if (!paramTypes || paramTypes.length === 0) {
-            return new registration.target();
+            return this.instantiateWithProperties(new registration.target(), options);
         }
 
         const args = paramTypes.map((paramType, index) => {
@@ -176,10 +176,18 @@ export class Container {
                 );
             }
 
-            return this.resolve(token as ResolveToken, options);
+            try {
+                return this.resolve(token as ResolveToken, options);
+            } catch (error) {
+                if (optionals?.has(index)) {
+                    return undefined;
+                }
+                throw error;
+            }
         });
 
-        return new registration.target(...args);
+        const instance = new registration.target(...args);
+        return this.instantiateWithProperties(instance, options);
     }
 
     private resolveSingleton(
@@ -203,6 +211,31 @@ export class Container {
         }
 
         return session.get(registration.token);
+    }
+
+    private instantiateWithProperties(instance: unknown, options: ResolveOptions = {}): unknown {
+        if (!instance || (typeof instance !== 'object' && typeof instance !== 'function')) {
+            return instance;
+        }
+
+        const ctor = (instance as { constructor: InjectableClass }).constructor;
+        const properties = getPropertyInjections(ctor);
+        if (!properties) {
+            return instance;
+        }
+
+        for (const key of Reflect.ownKeys(properties)) {
+            const token = properties[key as keyof typeof properties];
+            try {
+                (instance as Record<string | symbol, unknown>)[key] = this.resolve(token, options);
+            } catch (error) {
+                throw new Error(
+                    `Failed to inject property "${String(key)}" on service "${ctor.name}": ${(error as Error).message}`
+                );
+            }
+        }
+
+        return instance;
     }
 
     private disposeIfPossible(instance: unknown): void {
