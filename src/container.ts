@@ -447,6 +447,22 @@ export class Container {
             return true;
         }
 
+        if (isConstructorToken(unwrapped)) {
+            const registration = this.parent?.registrationsByCtor.get(unwrapped as InjectableClass);
+            if (registration) {
+                if (
+                    excludeStrings?.has(registration.token) ||
+                    excludeCtors?.has(registration.target)
+                ) {
+                    return false;
+                }
+                if (!includeCtors || includeCtors.size === 0) {
+                    return true;
+                }
+                return includeCtors.has(registration.target);
+            }
+        }
+
         return false;
     }
 
