@@ -28,7 +28,19 @@ export interface Registration<T = unknown> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type InjectableClass<T = unknown> = new (...args: any[]) => T;
 
-export type ResolveToken<T = unknown> = string | InjectableClass<T>;
+export interface ForwardRef<T = unknown> {
+    forwardRef: () => ResolveToken<T>;
+}
+
+export type ResolveToken<T = unknown> = string | InjectableClass<T> | ForwardRef<T>;
+
+export function forwardRef<T>(factory: () => ResolveToken<T>): ForwardRef<T> {
+    return { forwardRef: factory };
+}
+
+export function isForwardRef<T>(token: ResolveToken<T>): token is ForwardRef<T> {
+    return typeof token === 'object' && token !== null && 'forwardRef' in token;
+}
 
 export interface ResolveOptions {
     sessionId?: string;

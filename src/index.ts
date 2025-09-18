@@ -3,7 +3,10 @@ export {
     Lifecycle,
     type InjectableOptions,
     type Registration,
-    type ResolveOptions
+    type ResolveOptions,
+    type ResolveToken,
+    type ForwardRef,
+    forwardRef
 } from './types';
 export { Container } from './container';
 export { Injectable, Inject, Optional } from './decorators';

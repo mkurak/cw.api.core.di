@@ -1,6 +1,7 @@
 import { Injectable, Inject, Optional } from '../src/decorators';
 import { getContainer, resetContainer } from '../src/instance';
 import { Lifecycle } from '../src/types';
+import { forwardRef } from '../src';
 
 describe('Constructor injection', () => {
     beforeEach(() => {
@@ -88,9 +89,7 @@ describe('Constructor injection', () => {
         const service = container.resolve(OptionalService);
         expect(service.dep).toBeUndefined();
 
-        container.register(OptionalDependency as unknown as typeof OptionalDependency, {
-            lifecycle: Lifecycle.Singleton
-        });
+        container.register(OptionalDependency as unknown as typeof OptionalDependency);
         const serviceWithDep = container.resolve(OptionalService);
         expect(serviceWithDep.dep).toBeInstanceOf(OptionalDependency);
     });
@@ -110,5 +109,70 @@ describe('Constructor injection', () => {
         const container = getContainer();
         const controller = container.resolve(Controller);
         expect(controller.logger).toBeInstanceOf(Logger);
+    });
+
+    it('detects circular dependencies without forwardRef', () => {
+        @Injectable({ name: 'serviceA' })
+        class ServiceA {
+            constructor(@Inject('serviceB') private readonly b: unknown) {}
+        }
+
+        @Injectable({ name: 'serviceB' })
+        class ServiceB {
+            constructor(@Inject('serviceA') private readonly a: unknown) {}
+        }
+
+        void ServiceA;
+        void ServiceB;
+
+        const container = getContainer();
+        expect(() => container.resolve<ServiceA>('serviceA')).toThrow(
+            /Circular dependency detected/
+        );
+    });
+
+    it('supports forwardRef via lazy providers to break circular dependencies', () => {
+        @Injectable()
+        class ForwardServiceB {
+            constructor(
+                @Inject(forwardRef(() => ForwardServiceA))
+                private readonly getA: () => ForwardServiceA
+            ) {}
+
+            getAInstance() {
+                return this.getA();
+            }
+        }
+
+        @Injectable()
+        class ForwardServiceA {
+            constructor(
+                @Inject(forwardRef(() => ForwardServiceB))
+                private readonly getB: () => ForwardServiceB
+            ) {}
+
+            getBInstance() {
+                return this.getB();
+            }
+        }
+
+        const container = getContainer();
+        const a = container.resolve(ForwardServiceA);
+        const b = a.getBInstance();
+        expect(b).toBeInstanceOf(ForwardServiceB);
+        expect(b.getAInstance()).toBeInstanceOf(ForwardServiceA);
+    });
+
+    it('prevents singleton services from depending on scoped services', () => {
+        @Injectable({ lifecycle: Lifecycle.Scoped })
+        class ScopedDependency {}
+
+        @Injectable({ lifecycle: Lifecycle.Singleton })
+        class RootService {
+            constructor(private readonly scoped: ScopedDependency) {}
+        }
+
+        const container = getContainer();
+        expect(() => container.resolve(RootService)).toThrow(/Lifecycle violation/);
     });
 });

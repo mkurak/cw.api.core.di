@@ -7,7 +7,7 @@ const PROPERTY_INJECT_KEY = Symbol.for('cw.api.core.di:propertyinject');
 
 export type InjectMetadata = Record<number, ResolveToken>;
 export type OptionalMetadata = Set<number>;
-export type PropertyMetadata = Record<string | symbol, ResolveToken>;
+export type PropertyMetadata = Map<string | symbol, ResolveToken>;
 
 export function setParameterInjection(
     target: InjectableClass,
@@ -44,8 +44,8 @@ export function setPropertyInjection(
     const existing =
         (Reflect.getOwnMetadata(PROPERTY_INJECT_KEY, target.prototype) as
             | PropertyMetadata
-            | undefined) ?? {};
-    existing[propertyKey] = token;
+            | undefined) ?? new Map<string | symbol, ResolveToken>();
+    existing.set(propertyKey, token);
     Reflect.defineMetadata(PROPERTY_INJECT_KEY, existing, target.prototype);
 }
 
