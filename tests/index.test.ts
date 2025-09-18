@@ -8,6 +8,7 @@ describe('Public API surface', () => {
         expect(typeof api.RouteMiddleware).toBe('function');
         expect(typeof api.GlobalMiddleware).toBe('function');
         expect(typeof api.UseMiddleware).toBe('function');
+        expect(typeof api.ForwardRefInject).toBe('function');
         expect(typeof api.getActionMiddlewares).toBe('function');
         expect(typeof api.getMiddlewareMetadata).toBe('function');
         expect(typeof api.forwardRef).toBe('function');

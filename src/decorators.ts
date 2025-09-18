@@ -8,7 +8,14 @@ import {
     setParameterInjection,
     setPropertyInjection
 } from './metadata';
-import { InjectableClass, InjectableOptions, Lifecycle, ResolveToken, ServiceType } from './types';
+import {
+    InjectableClass,
+    InjectableOptions,
+    Lifecycle,
+    ResolveToken,
+    ServiceType,
+    forwardRef
+} from './types';
 
 export function Injectable(options: InjectableOptions = {}): ClassDecorator {
     return (target) => {
@@ -65,12 +72,18 @@ export function Optional(): ParameterDecorator {
 
 interface MiddlewareDecoratorOptions extends InjectableOptions {
     order?: number;
+    phase?: 'before' | 'after';
 }
 
 function createMiddlewareDecorator(scope: 'route' | 'global') {
     return (options: MiddlewareDecoratorOptions = {}): ClassDecorator => {
-        const { order = 0, middlewares: _ignored, ...rest } = options;
+        const { order = 0, phase, middlewares: _ignored, ...rest } = options;
         void _ignored;
+
+        if (scope === 'global' && !phase) {
+            throw new Error('Global middleware requires a phase ("before" or "after").');
+        }
+
         const base = Injectable({
             ...rest,
             type: ServiceType.Middleware,
@@ -79,7 +92,11 @@ function createMiddlewareDecorator(scope: 'route' | 'global') {
 
         return (target) => {
             base(target);
-            setMiddlewareMetadata(target as unknown as InjectableClass, { scope, order });
+            setMiddlewareMetadata(target as unknown as InjectableClass, {
+                scope,
+                order,
+                phase: scope === 'global' ? (phase ?? 'before') : undefined
+            });
         };
     };
 }
@@ -91,4 +108,10 @@ export function UseMiddleware(...tokens: ResolveToken[]): ClassDecorator {
     return (target) => {
         appendActionMiddlewares(target as unknown as InjectableClass, tokens);
     };
+}
+
+export function ForwardRefInject(
+    factory: () => ResolveToken
+): ParameterDecorator & PropertyDecorator {
+    return Inject(forwardRef(factory));
 }

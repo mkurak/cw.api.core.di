@@ -45,10 +45,12 @@ export function isForwardRef<T>(token: ResolveToken<T>): token is ForwardRef<T> 
 }
 
 export type MiddlewareScope = 'route' | 'global';
+export type GlobalMiddlewarePhase = 'before' | 'after';
 
 export interface MiddlewareClassMetadata {
     scope: MiddlewareScope;
     order: number;
+    phase?: GlobalMiddlewarePhase;
 }
 
 export interface MiddlewareHandler {

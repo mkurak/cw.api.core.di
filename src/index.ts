@@ -18,7 +18,8 @@ export {
     Optional,
     RouteMiddleware,
     GlobalMiddleware,
-    UseMiddleware
+    UseMiddleware,
+    ForwardRefInject
 } from './decorators';
 export { getActionMiddlewares, getMiddlewareMetadata } from './metadata';
 export { discover, type DiscoveryOptions } from './discovery';

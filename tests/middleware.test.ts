@@ -25,17 +25,28 @@ describe('Middleware decorators', () => {
         const meta = getMiddlewareMetadata(
             LoggingMiddleware as unknown as typeof LoggingMiddleware
         );
-        expect(meta).toEqual({ scope: 'route', order: 2 });
+        expect(meta).toMatchObject({ scope: 'route', order: 2 });
     });
 
-    it('registers global middleware with explicit order', () => {
-        @GlobalMiddleware({ order: 10 })
+    it('registers global middleware with explicit order/phase', () => {
+        @GlobalMiddleware({ order: 10, phase: 'before' })
         class AuthMiddleware implements MiddlewareHandler {
             handle(): void {}
         }
 
         const meta = getMiddlewareMetadata(AuthMiddleware as unknown as typeof AuthMiddleware);
-        expect(meta).toEqual({ scope: 'global', order: 10 });
+        expect(meta).toEqual({ scope: 'global', order: 10, phase: 'before' });
+    });
+
+    it('requires phase for global middleware', () => {
+        expect(() => {
+            @GlobalMiddleware()
+            class InvalidMiddleware implements MiddlewareHandler {
+                handle(): void {}
+            }
+
+            return InvalidMiddleware;
+        }).toThrow(/phase/);
     });
 
     it('throws if middleware lacks handle method', () => {

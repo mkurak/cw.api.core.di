@@ -1,8 +1,7 @@
 import 'reflect-metadata';
-import { Injectable, Inject, Optional } from '../src/decorators';
+import { Injectable, Inject, Optional, ForwardRefInject } from '../src/decorators';
 import { getContainer, resetContainer } from '../src/instance';
 import { Lifecycle, InjectableClass } from '../src/types';
-import { forwardRef } from '../src';
 import { setParameterInjection } from '../src/metadata';
 
 describe('Constructor injection', () => {
@@ -91,7 +90,7 @@ describe('Constructor injection', () => {
         const service = container.resolve(OptionalService);
         expect(service.dep).toBeUndefined();
 
-        container.register(OptionalDependency as unknown as typeof OptionalDependency);
+        container.register(OptionalDependency as unknown as InjectableClass);
         const serviceWithDep = container.resolve(OptionalService);
         expect(serviceWithDep.dep).toBeInstanceOf(OptionalDependency);
     });
@@ -143,7 +142,7 @@ describe('Constructor injection', () => {
         @Injectable()
         class ForwardServiceB {
             constructor(
-                @Inject(forwardRef(() => ForwardServiceA))
+                @ForwardRefInject(() => ForwardServiceA)
                 private readonly getA: () => ForwardServiceA
             ) {}
 
@@ -155,7 +154,7 @@ describe('Constructor injection', () => {
         @Injectable()
         class ForwardServiceA {
             constructor(
-                @Inject(forwardRef(() => ForwardServiceB))
+                @ForwardRefInject(() => ForwardServiceB)
                 private readonly getB: () => ForwardServiceB
             ) {}
 
