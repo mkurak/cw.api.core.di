@@ -6,9 +6,20 @@ export {
     type ResolveOptions,
     type ResolveToken,
     type ForwardRef,
+    type MiddlewareClassMetadata,
+    type MiddlewareScope,
+    type MiddlewareHandler,
     forwardRef
 } from './types';
 export { Container } from './container';
-export { Injectable, Inject, Optional } from './decorators';
+export {
+    Injectable,
+    Inject,
+    Optional,
+    RouteMiddleware,
+    GlobalMiddleware,
+    UseMiddleware
+} from './decorators';
+export { getActionMiddlewares, getMiddlewareMetadata } from './metadata';
 export { discover, type DiscoveryOptions } from './discovery';
 export { getContainer, resetContainer } from './instance';

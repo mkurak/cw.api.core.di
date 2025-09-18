@@ -3,7 +3,8 @@ export enum ServiceType {
     Controller = 'controller',
     Action = 'action',
     Repository = 'repository',
-    Entity = 'entity'
+    Entity = 'entity',
+    Middleware = 'middleware'
 }
 
 export enum Lifecycle {
@@ -16,6 +17,7 @@ export interface InjectableOptions {
     name?: string;
     type?: ServiceType;
     lifecycle?: Lifecycle;
+    middlewares?: ResolveToken[];
 }
 
 export interface Registration<T = unknown> {
@@ -40,6 +42,17 @@ export function forwardRef<T>(factory: () => ResolveToken<T>): ForwardRef<T> {
 
 export function isForwardRef<T>(token: ResolveToken<T>): token is ForwardRef<T> {
     return typeof token === 'object' && token !== null && 'forwardRef' in token;
+}
+
+export type MiddlewareScope = 'route' | 'global';
+
+export interface MiddlewareClassMetadata {
+    scope: MiddlewareScope;
+    order: number;
+}
+
+export interface MiddlewareHandler {
+    handle: (...args: unknown[]) => unknown | Promise<unknown>;
 }
 
 export interface ResolveOptions {

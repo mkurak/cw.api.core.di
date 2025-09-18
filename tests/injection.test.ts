@@ -1,7 +1,9 @@
+import 'reflect-metadata';
 import { Injectable, Inject, Optional } from '../src/decorators';
 import { getContainer, resetContainer } from '../src/instance';
-import { Lifecycle } from '../src/types';
+import { Lifecycle, InjectableClass } from '../src/types';
 import { forwardRef } from '../src';
+import { setParameterInjection } from '../src/metadata';
 
 describe('Constructor injection', () => {
     beforeEach(() => {
@@ -112,18 +114,24 @@ describe('Constructor injection', () => {
     });
 
     it('detects circular dependencies without forwardRef', () => {
-        @Injectable({ name: 'serviceA' })
         class ServiceA {
-            constructor(@Inject('serviceB') private readonly b: unknown) {}
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            constructor(_: unknown) {}
         }
 
-        @Injectable({ name: 'serviceB' })
         class ServiceB {
-            constructor(@Inject('serviceA') private readonly a: unknown) {}
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            constructor(_: unknown) {}
         }
 
-        void ServiceA;
-        void ServiceB;
+        Injectable({ name: 'serviceA' })(ServiceA);
+        Injectable({ name: 'serviceB' })(ServiceB);
+
+        Reflect.defineMetadata('design:paramtypes', [Object], ServiceA);
+        Reflect.defineMetadata('design:paramtypes', [Object], ServiceB);
+
+        setParameterInjection(ServiceA as unknown as InjectableClass, 0, 'serviceB');
+        setParameterInjection(ServiceB as unknown as InjectableClass, 0, 'serviceA');
 
         const container = getContainer();
         expect(() => container.resolve<ServiceA>('serviceA')).toThrow(
