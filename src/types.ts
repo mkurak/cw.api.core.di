@@ -146,3 +146,8 @@ export interface ContainerLogOptions {
     includeInstantiate?: boolean;
     includeDispose?: boolean;
 }
+
+export interface ChildContainerOptions {
+    include?: ResolveToken[];
+    exclude?: ResolveToken[];
+}

@@ -6,6 +6,7 @@ import {
     ContainerEventName,
     ContainerLogEntry,
     ContainerLogOptions,
+    ChildContainerOptions,
     InjectableClass,
     InjectableOptions,
     Lifecycle,
@@ -36,6 +37,13 @@ interface ScopeContext {
 }
 
 type ListenerSet = Set<ContainerEventListener<ContainerEventName>>;
+
+interface InheritanceRules {
+    includeStrings?: Set<string>;
+    includeCtors?: Set<InjectableClass>;
+    excludeStrings?: Set<string>;
+    excludeCtors?: Set<InjectableClass>;
+}
 
 function isPromiseLike<T = unknown>(value: unknown): value is PromiseLike<T> {
     return (
@@ -112,6 +120,7 @@ function generateToken(target: InjectableClass, options: InjectableOptions): str
 
 export class Container {
     private readonly parent?: Container;
+    private readonly inheritance?: InheritanceRules;
     private registrationsByToken = new Map<string, InternalRegistration>();
     private registrationsByCtor = new WeakMap<InjectableClass, InternalRegistration>();
     private sessions = new Map<string, InstanceMap>();
@@ -121,8 +130,9 @@ export class Container {
     private registeredModules = new Set<ModuleRef>();
     private listeners = new Map<ContainerEventName, ListenerSet>();
 
-    constructor(parent?: Container) {
+    constructor(parent?: Container, inheritance?: InheritanceRules) {
         this.parent = parent;
+        this.inheritance = inheritance;
     }
 
     register(target: InjectableClass, options: InjectableOptions = {}): Registration {
@@ -167,7 +177,9 @@ export class Container {
 
         if (this.parent) {
             for (const registration of this.parent.list(type)) {
-                aggregated.set(registration.token, registration);
+                if (this.canInheritRegistration(registration)) {
+                    aggregated.set(registration.token, registration);
+                }
             }
         }
 
@@ -183,10 +195,13 @@ export class Container {
     resolve<T>(token: ResolveToken<T>, options: ResolveOptions = {}): T {
         const registration = this.findRegistration(token);
         if (!registration) {
-            if (this.parent) {
+            if (this.parent && this.canInheritToken(token)) {
                 return this.parent.resolve(token, options);
             }
-            throw new Error(`No registration found for token: ${this.describeToken(token)}`);
+            const message = this.parent
+                ? `Token "${this.describeToken(token)}" is not available in this container.`
+                : `No registration found for token: ${this.describeToken(token)}`;
+            throw new Error(message);
         }
 
         const normalized = this.normalizeResolveOptions(options);
@@ -308,8 +323,131 @@ export class Container {
         }
     }
 
-    createChild(): Container {
-        return new Container(this);
+    createChild(options?: ChildContainerOptions): Container {
+        const inheritance = this.normalizeChildOptions(options);
+        return new Container(this, inheritance);
+    }
+
+    private normalizeChildOptions(options?: ChildContainerOptions): InheritanceRules | undefined {
+        if (!options) {
+            return undefined;
+        }
+
+        const includeStrings = new Set<string>();
+        const includeCtors = new Set<InjectableClass>();
+        const excludeStrings = new Set<string>();
+        const excludeCtors = new Set<InjectableClass>();
+
+        const process = (
+            tokens: ResolveToken[] | undefined,
+            outStrings: Set<string>,
+            outCtors: Set<InjectableClass>
+        ) => {
+            if (!tokens) {
+                return;
+            }
+            for (const token of tokens) {
+                const { token: unwrapped } = this.unwrapToken(token);
+                const description = this.describeToken(unwrapped);
+                outStrings.add(description);
+                if (isConstructorToken(unwrapped)) {
+                    outCtors.add(unwrapped as InjectableClass);
+                }
+            }
+        };
+
+        process(options.include, includeStrings, includeCtors);
+        process(options.exclude, excludeStrings, excludeCtors);
+
+        if (
+            includeStrings.size === 0 &&
+            includeCtors.size === 0 &&
+            excludeStrings.size === 0 &&
+            excludeCtors.size === 0
+        ) {
+            return undefined;
+        }
+
+        return {
+            includeStrings: includeStrings.size ? includeStrings : undefined,
+            includeCtors: includeCtors.size ? includeCtors : undefined,
+            excludeStrings: excludeStrings.size ? excludeStrings : undefined,
+            excludeCtors: excludeCtors.size ? excludeCtors : undefined
+        };
+    }
+
+    private canInheritRegistration(registration: Registration): boolean {
+        if (!this.parent) {
+            return false;
+        }
+        if (!this.inheritance) {
+            return true;
+        }
+
+        const { includeStrings, includeCtors, excludeStrings, excludeCtors } = this.inheritance;
+
+        if (excludeStrings?.has(registration.token)) {
+            return false;
+        }
+
+        if (excludeCtors?.has(registration.target)) {
+            return false;
+        }
+
+        const hasInclude =
+            (includeStrings && includeStrings.size > 0) || (includeCtors && includeCtors.size > 0);
+
+        if (!hasInclude) {
+            return true;
+        }
+
+        if (includeStrings?.has(registration.token)) {
+            return true;
+        }
+
+        if (includeCtors?.has(registration.target)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private canInheritToken(token: ResolveToken): boolean {
+        if (!this.parent) {
+            return false;
+        }
+        if (!this.inheritance) {
+            return true;
+        }
+
+        const { includeStrings, includeCtors, excludeStrings, excludeCtors } = this.inheritance;
+        const { token: unwrapped } = this.unwrapToken(token);
+        const description = this.describeToken(unwrapped);
+
+        if (excludeStrings?.has(description)) {
+            return false;
+        }
+
+        if (isConstructorToken(unwrapped) && excludeCtors?.has(unwrapped as InjectableClass)) {
+            return false;
+        }
+
+        const hasInclude =
+            (includeStrings && includeStrings.size > 0) || (includeCtors && includeCtors.size > 0);
+
+        if (!hasInclude) {
+            return true;
+        }
+
+        if (includeStrings?.has(description)) {
+            return true;
+        }
+
+        if (isConstructorToken(unwrapped) && includeCtors?.has(unwrapped as InjectableClass)) {
+            return true;
+        }
+
+        return false;
     }
 
     on<K extends ContainerEventName>(event: K, listener: ContainerEventListener<K>): () => void {
