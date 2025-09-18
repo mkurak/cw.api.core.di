@@ -1,0 +1,61 @@
+# cw.api.core.di
+
+## Table of Contents
+- Overview
+  - Purpose & Philosophy
+  - Feature Highlights
+  - When to Use This Package
+- Getting Started
+  - Installation
+  - Quick Start Example
+- Architecture Deep Dive
+  - Container Lifecycle & Resolution Flow
+  - Tokens, Registrations, and Injection Modes
+  - Session & Scope Management
+  - Module System & Discovery Pipeline
+  - Middleware & Routing Metadata
+  - Statistics, Events, and Observability
+- API Reference
+  - Container Class
+  - Decorators
+    - `@Injectable`
+    - `@Inject`
+    - `@Optional`
+    - `@Route`
+    - `@UseMiddleware`
+    - `@RouteMiddleware`
+    - `@GlobalMiddleware`
+    - `ForwardRefInject`
+  - Utility Exports
+    - Module Helpers (`createModule`, `registerModules`)
+    - Discovery Helpers
+    - Types & Interfaces
+  - Configuration Objects
+    - `ResolveOptions`
+    - `ChildContainerOptions`
+    - `ContainerStats`
+- Usage Guides
+  - Building a Service Graph from Scratch
+  - Optional Dependencies (Constructor & Property)
+  - Scoped Lifetimes in HTTP/RPC Contexts
+  - Middleware Pipelines for Route Handling
+  - Controller & Action Metadata in Practice
+  - Modular Architecture Patterns
+  - Nested Containers & Tenant Isolation
+  - Observability Recipes (Events, Stats, Logging)
+- Advanced Topics
+  - Forward References & Circular Dependency Strategies
+  - Custom Discovery Strategies
+  - Extending or Writing Custom Decorators
+  - Integrating with External Frameworks (Express, Fastify, etc.)
+  - Testing Techniques & Mock Containers
+- Tooling & Workflows
+  - Development Scripts & Linting
+  - Git Hooks & Validation Pipeline
+  - Release Checklist (Versioning, CHANGE_LOG)
+- Migration & Version History
+  - Semantic Versioning Policy
+  - Upgrade Notes by Version
+- FAQ
+- Contributing Guide
+- License
