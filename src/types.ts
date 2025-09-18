@@ -126,6 +126,7 @@ export type ContainerEventMap = {
     'resolve:error': ResolveErrorEvent;
     instantiate: InstantiateEvent;
     dispose: DisposeEvent;
+    'stats:change': StatsChangeEvent;
 };
 
 export type ContainerEventName = keyof ContainerEventMap;
@@ -150,4 +151,18 @@ export interface ContainerLogOptions {
 export interface ChildContainerOptions {
     include?: ResolveToken[];
     exclude?: ResolveToken[];
+}
+
+export interface ContainerStats {
+    registrations: number;
+    singletonInstances: number;
+    activeSessions: number;
+    childContainers: number;
+}
+
+export interface StatsChangeEvent {
+    stats: ContainerStats;
+    previous: ContainerStats;
+    reason: string;
+    containerId: string;
 }

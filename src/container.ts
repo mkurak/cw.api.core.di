@@ -7,6 +7,7 @@ import {
     ContainerLogEntry,
     ContainerLogOptions,
     ChildContainerOptions,
+    ContainerStats,
     InjectableClass,
     InjectableOptions,
     Lifecycle,
@@ -44,6 +45,8 @@ interface InheritanceRules {
     excludeStrings?: Set<string>;
     excludeCtors?: Set<InjectableClass>;
 }
+
+let containerIdCounter = 0;
 
 function isPromiseLike<T = unknown>(value: unknown): value is PromiseLike<T> {
     return (
@@ -119,8 +122,10 @@ function generateToken(target: InjectableClass, options: InjectableOptions): str
 }
 
 export class Container {
+    private readonly id: string;
     private readonly parent?: Container;
     private readonly inheritance?: InheritanceRules;
+    private stats: ContainerStats;
     private registrationsByToken = new Map<string, InternalRegistration>();
     private registrationsByCtor = new WeakMap<InjectableClass, InternalRegistration>();
     private sessions = new Map<string, InstanceMap>();
@@ -131,8 +136,15 @@ export class Container {
     private listeners = new Map<ContainerEventName, ListenerSet>();
 
     constructor(parent?: Container, inheritance?: InheritanceRules) {
+        this.id = `container-${++containerIdCounter}`;
         this.parent = parent;
         this.inheritance = inheritance;
+        this.stats = {
+            registrations: 0,
+            singletonInstances: 0,
+            activeSessions: 0,
+            childContainers: 0
+        };
     }
 
     register(target: InjectableClass, options: InjectableOptions = {}): Registration {
@@ -159,6 +171,9 @@ export class Container {
 
         this.registrationsByToken.set(token, registration);
         this.registrationsByCtor.set(target, registration);
+        this.updateStats('register', (stats) => {
+            stats.registrations += 1;
+        });
 
         return registration;
     }
@@ -217,6 +232,9 @@ export class Container {
         this.sessions.set(id, new Map());
         const info: SessionInfo = { id, createdAt: Date.now(), scope };
         this.sessionInfos.set(id, info);
+        this.updateStats('session:create', (stats) => {
+            stats.activeSessions += 1;
+        });
         return info;
     }
 
@@ -280,6 +298,10 @@ export class Container {
         this.sessions.delete(sessionId);
         this.sessionInfos.delete(sessionId);
 
+        this.updateStats('session:destroy', (stats) => {
+            stats.activeSessions = this.sessionInfos.size;
+        });
+
         if (asyncDisposals.length > 0) {
             return Promise.all(asyncDisposals).then(() => undefined);
         }
@@ -318,14 +340,56 @@ export class Container {
         this.sessionCounter = 0;
         this.registeredModules = new Set<ModuleRef>();
 
+        this.updateStats('clear', (stats) => {
+            stats.registrations = this.registrationsByToken.size;
+            stats.singletonInstances = 0;
+            stats.activeSessions = this.sessionInfos.size;
+        });
+
         if (disposals.length > 0) {
             return Promise.all(disposals).then(() => undefined);
         }
     }
 
+    getId(): string {
+        return this.id;
+    }
+
+    getStats(): ContainerStats {
+        return { ...this.stats };
+    }
+
     createChild(options?: ChildContainerOptions): Container {
         const inheritance = this.normalizeChildOptions(options);
+        this.updateStats('child:create', (stats) => {
+            stats.childContainers += 1;
+        });
         return new Container(this, inheritance);
+    }
+
+    private updateStats(reason: string, mutator: (stats: ContainerStats) => void): void {
+        const previous = { ...this.stats };
+        const next = { ...this.stats };
+        mutator(next);
+        if (this.statsEquals(previous, next)) {
+            return;
+        }
+        this.stats = next;
+        this.emit('stats:change', {
+            stats: { ...next },
+            previous,
+            reason,
+            containerId: this.id
+        });
+    }
+
+    private statsEquals(a: ContainerStats, b: ContainerStats): boolean {
+        return (
+            a.registrations === b.registrations &&
+            a.singletonInstances === b.singletonInstances &&
+            a.activeSessions === b.activeSessions &&
+            a.childContainers === b.childContainers
+        );
     }
 
     private normalizeChildOptions(options?: ChildContainerOptions): InheritanceRules | undefined {
@@ -578,6 +642,12 @@ export class Container {
                 options,
                 nextPath
             );
+
+            if (!fromCache && registration.lifecycle === Lifecycle.Singleton) {
+                this.updateStats('singleton:init', (stats) => {
+                    stats.singletonInstances += 1;
+                });
+            }
 
             this.emit('resolve:success', {
                 token: identifier,

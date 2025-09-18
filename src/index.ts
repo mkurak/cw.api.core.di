@@ -17,6 +17,8 @@ export {
     type ContainerLogEntry,
     type ContainerLogOptions,
     type ChildContainerOptions,
+    type ContainerStats,
+    type StatsChangeEvent,
     forwardRef
 } from './types';
 export { Container } from './container';
