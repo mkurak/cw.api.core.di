@@ -1,11 +1,19 @@
 import 'reflect-metadata';
-import type { InjectableClass, MiddlewareClassMetadata, ResolveToken } from './types';
+import type {
+    ControllerMetadata,
+    InjectableClass,
+    MiddlewareClassMetadata,
+    ResolveToken,
+    RouteMetadata
+} from './types';
 
 const PARAM_INJECT_KEY = Symbol.for('cw.api.core.di:paraminject');
 const OPTIONAL_PARAM_KEY = Symbol.for('cw.api.core.di:paramoptional');
 const PROPERTY_INJECT_KEY = Symbol.for('cw.api.core.di:propertyinject');
 const ACTION_MIDDLEWARES_KEY = Symbol.for('cw.api.core.di:actionmiddlewares');
 const MIDDLEWARE_META_KEY = Symbol.for('cw.api.core.di:middlewaremeta');
+const CONTROLLER_META_KEY = Symbol.for('cw.api.core.di:controller');
+const ACTION_ROUTE_META_KEY = Symbol.for('cw.api.core.di:actionroute');
 
 export type InjectMetadata = Record<number, ResolveToken>;
 export type OptionalMetadata = Set<number>;
@@ -100,4 +108,20 @@ export function ensureMiddlewareContract(target: InjectableClass): void {
     if (typeof target.prototype.handle !== 'function') {
         throw new Error(`Middleware "${target.name}" must implement a handle method.`);
     }
+}
+
+export function setControllerMetadata(target: InjectableClass, metadata: ControllerMetadata): void {
+    Reflect.defineMetadata(CONTROLLER_META_KEY, metadata, target);
+}
+
+export function getControllerMetadata(target: InjectableClass): ControllerMetadata | undefined {
+    return Reflect.getMetadata(CONTROLLER_META_KEY, target) as ControllerMetadata | undefined;
+}
+
+export function setActionRoute(target: InjectableClass, metadata: RouteMetadata): void {
+    Reflect.defineMetadata(ACTION_ROUTE_META_KEY, metadata, target);
+}
+
+export function getActionRoute(target: InjectableClass): RouteMetadata | undefined {
+    return Reflect.getMetadata(ACTION_ROUTE_META_KEY, target) as RouteMetadata | undefined;
 }

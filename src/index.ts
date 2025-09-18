@@ -10,6 +10,7 @@ export {
     type MiddlewareScope,
     type GlobalMiddlewarePhase,
     type MiddlewareHandler,
+    type HttpMethod,
     forwardRef
 } from './types';
 export { Container } from './container';
@@ -20,9 +21,16 @@ export {
     RouteMiddleware,
     GlobalMiddleware,
     UseMiddleware,
-    ForwardRefInject
+    ForwardRefInject,
+    Controller,
+    Route
 } from './decorators';
-export { getActionMiddlewares, getMiddlewareMetadata } from './metadata';
+export {
+    getActionMiddlewares,
+    getMiddlewareMetadata,
+    getControllerMetadata,
+    getActionRoute
+} from './metadata';
 export { discover, type DiscoveryOptions } from './discovery';
 export { getContainer, resetContainer } from './instance';
 export {

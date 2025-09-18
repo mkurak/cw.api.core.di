@@ -4,9 +4,11 @@ import {
     appendActionMiddlewares,
     ensureMiddlewareContract,
     markParameterOptional,
+    setControllerMetadata,
     setMiddlewareMetadata,
     setParameterInjection,
-    setPropertyInjection
+    setPropertyInjection,
+    setActionRoute
 } from './metadata';
 import {
     InjectableClass,
@@ -14,6 +16,7 @@ import {
     Lifecycle,
     ResolveToken,
     ServiceType,
+    RouteMetadata,
     forwardRef
 } from './types';
 
@@ -75,6 +78,14 @@ interface MiddlewareDecoratorOptions extends InjectableOptions {
     phase?: 'before' | 'after';
 }
 
+interface ControllerOptions extends InjectableOptions {
+    basePath: string;
+    middlewares?: ResolveToken[];
+    tags?: string[];
+}
+
+type RouteOptions = RouteMetadata;
+
 function createMiddlewareDecorator(scope: 'route' | 'global') {
     return (options: MiddlewareDecoratorOptions = {}): ClassDecorator => {
         const { order = 0, phase, middlewares: _ignored, ...rest } = options;
@@ -114,4 +125,39 @@ export function ForwardRefInject(
     factory: () => ResolveToken
 ): ParameterDecorator & PropertyDecorator {
     return Inject(forwardRef(factory));
+}
+
+export function Controller(options: ControllerOptions): ClassDecorator {
+    const { basePath, middlewares, tags, ...rest } = options;
+    if (!basePath) {
+        throw new Error('Controller requires a basePath.');
+    }
+
+    const normalizedBase = basePath.startsWith('/') ? basePath : `/${basePath}`;
+    const decorator = Injectable({ ...rest, type: ServiceType.Controller, middlewares });
+
+    return (target) => {
+        decorator(target);
+        setControllerMetadata(target as unknown as InjectableClass, {
+            basePath: normalizedBase,
+            middlewares,
+            tags
+        });
+    };
+}
+
+export function Route(metadata: RouteOptions): ClassDecorator {
+    const { method, path } = metadata;
+    if (!method || !path) {
+        throw new Error('Route decorator requires both method and path.');
+    }
+
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+    return (target) => {
+        setActionRoute(target as unknown as InjectableClass, {
+            ...metadata,
+            path: normalizedPath
+        });
+    };
 }

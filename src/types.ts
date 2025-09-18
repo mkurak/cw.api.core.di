@@ -57,6 +57,22 @@ export interface MiddlewareHandler {
     handle: (...args: unknown[]) => unknown | Promise<unknown>;
 }
 
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS' | 'TRACE';
+
+export interface ControllerMetadata {
+    basePath: string;
+    middlewares?: ResolveToken[];
+    tags?: string[];
+}
+
+export interface RouteMetadata {
+    method: HttpMethod;
+    path: string;
+    name?: string;
+    summary?: string;
+    description?: string;
+}
+
 export interface ResolveOptions {
     sessionId?: string;
     scope?: string;
