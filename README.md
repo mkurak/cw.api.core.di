@@ -669,4 +669,4 @@ Coding style follows the ESLint/Prettier configuration in the repo. Keep contrib
 
 ## License
 
-MIT License © CWhiz ecosystem. See `LICENSE` for details.
+MIT License © 2025 Mert Kurak. See `LICENSE` for details.

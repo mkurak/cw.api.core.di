@@ -14,9 +14,17 @@
     "prepare": "npm run build && npm run hooks:install",
     "hooks:install": "node scripts/setup-hooks.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "asynclocalstorage",
+    "container",
+    "dependency-injection",
+    "middleware",
+    "module-system",
+    "nodejs",
+    "typescript"
+  ],
+  "author": "Mert Kurak",
+  "license": "MIT",
   "description": "Dependency injection container for cw API projects.",
   "devDependencies": {
     "@eslint/js": "^9.35.0",
@@ -40,5 +48,13 @@
   ],
   "dependencies": {
     "reflect-metadata": "^0.2.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mkurak/cw.api.core.di.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mkurak/cw.api.core.di/issues"
+  },
+  "homepage": "https://github.com/mkurak/cw.api.core.di"
 }
