@@ -1,5 +1,5 @@
-import type { Container } from './container';
-import type { InjectableOptions, InjectableClass, ResolveToken } from './types';
+import type { Container } from './container.js';
+import type { InjectableOptions, InjectableClass, ResolveToken } from './types.js';
 
 export interface ModuleProviderConfig {
     provide?: ResolveToken;

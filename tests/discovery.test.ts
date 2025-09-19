@@ -4,20 +4,23 @@ import os from 'node:os';
 import { discover } from '../src/discovery';
 import { resetContainer } from '../src/instance';
 import childProcess from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const testDir = path.dirname(fileURLToPath(import.meta.url));
 
 describe('Discovery', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cw-di-discovery-'));
 
     beforeAll(() => {
         const tscBin = path.resolve(
-            __dirname,
+            testDir,
             '..',
             'node_modules',
             '.bin',
             process.platform === 'win32' ? 'tsc.cmd' : 'tsc'
         );
         childProcess.execFileSync(tscBin, ['--project', 'tsconfig.build.json'], {
-            cwd: path.resolve(__dirname, '..'),
+            cwd: path.resolve(testDir, '..'),
             stdio: 'ignore'
         });
     });

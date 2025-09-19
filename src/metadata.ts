@@ -5,7 +5,7 @@ import type {
     MiddlewareClassMetadata,
     ResolveToken,
     RouteMetadata
-} from './types';
+} from './types.js';
 
 const PARAM_INJECT_KEY = Symbol.for('cw.api.core.di:paraminject');
 const OPTIONAL_PARAM_KEY = Symbol.for('cw.api.core.di:paramoptional');

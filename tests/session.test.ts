@@ -1,6 +1,7 @@
 import { Injectable } from '../src/decorators';
 import { getContainer, resetContainer } from '../src/instance';
 import { Lifecycle } from '../src/types';
+import { jest } from '@jest/globals';
 
 describe('Session utilities', () => {
     beforeEach(async () => {

@@ -17,14 +17,14 @@ import {
     ServiceType,
     SessionInfo,
     isForwardRef
-} from './types';
-import type { ModuleRef } from './module';
+} from './types.js';
+import type { ModuleRef } from './module.js';
 import {
     getOptionalParameters,
     getParameterInjections,
     getPropertyInjections,
     isPropertyOptional
-} from './metadata';
+} from './metadata.js';
 
 interface InternalRegistration extends Registration {
     singletonInstance?: unknown;

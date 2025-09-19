@@ -1,4 +1,4 @@
-import { Container } from './container';
+import { Container } from './container.js';
 
 const GLOBAL_KEY = Symbol.for('cw.api.core.di.container');
 

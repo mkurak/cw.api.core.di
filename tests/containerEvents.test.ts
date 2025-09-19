@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { Container, Lifecycle, type ContainerLogEntry } from '../src';
+import { jest } from '@jest/globals';
 
 class DependencyService {}
 

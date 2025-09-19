@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { getContainer } from './instance';
+import { getContainer } from './instance.js';
 import {
     appendActionMiddlewares,
     ensureMiddlewareContract,
@@ -10,7 +10,7 @@ import {
     setParameterInjection,
     setPropertyInjection,
     setActionRoute
-} from './metadata';
+} from './metadata.js';
 import {
     InjectableClass,
     InjectableOptions,
@@ -19,7 +19,7 @@ import {
     ServiceType,
     RouteMetadata,
     forwardRef
-} from './types';
+} from './types.js';
 
 export function Injectable(options: InjectableOptions = {}): ClassDecorator {
     return (target) => {

@@ -20,8 +20,8 @@ export {
     type ContainerStats,
     type StatsChangeEvent,
     forwardRef
-} from './types';
-export { Container } from './container';
+} from './types.js';
+export { Container } from './container.js';
 export {
     Injectable,
     Inject,
@@ -32,16 +32,16 @@ export {
     ForwardRefInject,
     Controller,
     Route
-} from './decorators';
+} from './decorators.js';
 export {
     getActionMiddlewares,
     getMiddlewareMetadata,
     getControllerMetadata,
     getActionRoute,
     getControllerRoutes
-} from './metadata';
-export { discover, type DiscoveryOptions } from './discovery';
-export { getContainer, resetContainer } from './instance';
+} from './metadata.js';
+export { discover, type DiscoveryOptions } from './discovery.js';
+export { getContainer, resetContainer } from './instance.js';
 export {
     createModule,
     registerModules,
@@ -49,4 +49,4 @@ export {
     type ModuleConfig,
     type ModuleProvider,
     type ModuleProviderConfig
-} from './module';
+} from './module.js';
