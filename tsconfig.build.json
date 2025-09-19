@@ -1,5 +1,16 @@
 {
-  "extends": "./tsconfig.json",
-  "include": ["src/**/*.ts"],
-  "exclude": ["tests", "dist", "coverage", "node_modules"]
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "Bundler",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "stripInternal": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": false,
+    "rootDir": "src"
+  },
+  "include": ["src"]
 }

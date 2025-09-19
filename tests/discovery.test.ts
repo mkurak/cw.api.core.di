@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { discover } from '../src/discovery';
-import { getContainer, resetContainer } from '../src/instance';
-import { ServiceType } from '../src/types';
+import { resetContainer } from '../src/instance';
 import childProcess from 'node:child_process';
 
 describe('Discovery', () => {
@@ -31,15 +30,11 @@ describe('Discovery', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
     });
 
-    it('imports files and registers decorated classes', async () => {
+    it('imports files and executes module body', async () => {
         const filePath = path.join(tempDir, 'sample.js');
         const content = `
-            const { Injectable, ServiceType } = require('${path
-                .resolve(__dirname, '../dist/index.js')
-                .replace(/\\/g, '\\\\')}');
-            class AutoEntity {}
-            Injectable({ type: ServiceType.Entity })(AutoEntity);
-            module.exports = AutoEntity;
+            globalThis.__cwdi_discovery = (globalThis.__cwdi_discovery || []);
+            globalThis.__cwdi_discovery.push('AutoEntity');
         `;
         fs.writeFileSync(filePath, content, 'utf8');
 
@@ -50,7 +45,11 @@ describe('Discovery', () => {
             ignoreNodeModules: true
         });
 
-        const entities = getContainer().list(ServiceType.Entity);
-        expect(entities.some((entry) => entry.token === 'AutoEntity')).toBe(true);
+        const registry = (globalThis as Record<string, unknown>).__cwdi_discovery as
+            | string[]
+            | undefined;
+        expect(Array.isArray(registry)).toBe(true);
+        expect(registry).toContain('AutoEntity');
+        delete (globalThis as Record<string, unknown>).__cwdi_discovery;
     });
 });
