@@ -23,7 +23,20 @@ const allowed = new Set([
 
 const defaultMessage = 'chore: release v%s';
 
-const [, , typeArg, ...messageParts] = process.argv;
+const [, , rawTypeArg, ...messageParts] = process.argv;
+
+const typeArg = (() => {
+    if (!rawTypeArg) {
+        return undefined;
+    }
+    if (rawTypeArg.startsWith('--')) {
+        return rawTypeArg.slice(2);
+    }
+    if (rawTypeArg.startsWith('-')) {
+        return rawTypeArg.slice(1);
+    }
+    return rawTypeArg;
+})();
 
 if (!typeArg || !allowed.has(typeArg)) {
     console.error(
