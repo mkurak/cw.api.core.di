@@ -11,7 +11,7 @@ function run(command, args) {
     }
 }
 
-const allowed = new Set([
+const allowedTypes = [
     'major',
     'minor',
     'patch',
@@ -19,29 +19,58 @@ const allowed = new Set([
     'preminor',
     'prepatch',
     'prerelease'
-]);
+];
+const allowed = new Set(allowedTypes);
+
+const helpText = `Release helper\n\nUsage:\n  npm run release -- <type> [commit message]\n  npm run release --patch\n  npm run release -- patch \"custom message\"\n  npm run release patch\n  node scripts/release.mjs patch \"custom message\"\n\nTypes:\n  ${allowedTypes.join(', ')}\n\nNotlar:\n  - Mesaj vermezsen otomatik olarak \"chore: release v%s\" formatı kullanılır.\n  - Mesaj yazıp \"%s\" eklemezsen, sürüm numarası sona eklenir.\n  - Komut, sürümü artırdıktan sonra otomatik olarak \"git push\" ve \"git push --tags\" çalıştırır.`;
 
 const defaultMessage = 'chore: release v%s';
 
-const [, , rawTypeArg, ...messageParts] = process.argv;
+const args = process.argv.slice(2);
 
-const typeArg = (() => {
-    if (!rawTypeArg) {
-        return undefined;
+if (args[0] === '--') {
+    args.shift();
+}
+
+function normalizeType(value) {
+    if (!value) return undefined;
+    if (value === '--') return undefined;
+    if (value.startsWith('--')) return value.slice(2);
+    if (value.startsWith('-')) return value.slice(1);
+    return value;
+}
+
+function detectTypeFromEnv() {
+    for (const type of allowedTypes) {
+        const envValue = process.env[`npm_config_${type}`];
+        if (typeof envValue !== 'undefined') {
+            if (envValue === '' || envValue === 'true') {
+                return type;
+            }
+        }
     }
-    if (rawTypeArg.startsWith('--')) {
-        return rawTypeArg.slice(2);
-    }
-    if (rawTypeArg.startsWith('-')) {
-        return rawTypeArg.slice(1);
-    }
-    return rawTypeArg;
-})();
+    return undefined;
+}
+
+let potentialType = normalizeType(args[0]);
+
+if (potentialType && ['help', 'h', '?'].includes(potentialType)) {
+    console.log(helpText);
+    process.exit(0);
+}
+
+let messageParts;
+if (potentialType && allowed.has(potentialType)) {
+    messageParts = args.slice(1);
+} else {
+    potentialType = detectTypeFromEnv();
+    messageParts = args;
+}
+
+const typeArg = potentialType;
 
 if (!typeArg || !allowed.has(typeArg)) {
-    console.error(
-        `Usage: npm run release -- <${Array.from(allowed).join('|')}> [commit message]`
-    );
+    console.error(helpText);
     process.exit(1);
 }
 
