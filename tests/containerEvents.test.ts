@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Container, Lifecycle, type ContainerLogEntry } from '../src';
 import { jest } from '@jest/globals';
+import { logger } from '../src/logger.js';
 
 class DependencyService {}
 
@@ -104,7 +105,10 @@ describe('Container events & logging', () => {
     });
 
     it('default trace sink yazma yollarını tetikler', async () => {
-        const debugSpy = jest.spyOn(console, 'debug').mockImplementation(() => undefined);
+        const debugSpy = jest.spyOn(logger, 'debug').mockImplementation(() => undefined);
+        const infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => undefined);
+        const successSpy = jest.spyOn(logger, 'success').mockImplementation(() => undefined);
+        const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
         const container = new Container();
         container.register(DependencyService);
         container.register(RootService);
@@ -122,7 +126,18 @@ describe('Container events & logging', () => {
         }
 
         detach();
-        expect(debugSpy).toHaveBeenCalled();
+
+        const totalCalls =
+            debugSpy.mock.calls.length +
+            infoSpy.mock.calls.length +
+            successSpy.mock.calls.length +
+            errorSpy.mock.calls.length;
+
+        expect(totalCalls).toBeGreaterThan(0);
+
         debugSpy.mockRestore();
+        infoSpy.mockRestore();
+        successSpy.mockRestore();
+        errorSpy.mockRestore();
     });
 });

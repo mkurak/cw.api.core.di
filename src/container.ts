@@ -25,6 +25,7 @@ import {
     getPropertyInjections,
     isPropertyOptional
 } from './metadata.js';
+import { logger } from './logger.js';
 
 interface InternalRegistration extends Registration {
     singletonInstance?: unknown;
@@ -57,21 +58,12 @@ function isPromiseLike<T = unknown>(value: unknown): value is PromiseLike<T> {
     );
 }
 
-function debugSink(...args: unknown[]): void {
-    if (typeof console === 'undefined') {
-        return;
-    }
-    const fn = typeof console.debug === 'function' ? console.debug : console.log;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fn as (...params: any[]) => void).apply(console, args as unknown[]);
-}
-
 const DEFAULT_TRACE_SINK = (entry: ContainerLogEntry): void => {
     const prefix = `[container:${entry.event}]`;
     switch (entry.event) {
         case 'resolve:start': {
             const payload = entry.payload as ContainerEventMap['resolve:start'];
-            debugSink(
+            logger.debug(
                 prefix,
                 payload.token,
                 'path=',
@@ -83,7 +75,7 @@ const DEFAULT_TRACE_SINK = (entry: ContainerLogEntry): void => {
         }
         case 'resolve:success': {
             const payload = entry.payload as ContainerEventMap['resolve:success'];
-            debugSink(
+            logger.success(
                 prefix,
                 payload.token,
                 'cached=',
@@ -95,21 +87,21 @@ const DEFAULT_TRACE_SINK = (entry: ContainerLogEntry): void => {
         }
         case 'resolve:error': {
             const payload = entry.payload as ContainerEventMap['resolve:error'];
-            debugSink(prefix, payload.token, 'error=', payload.error.message);
+            logger.error(prefix, payload.token, payload.error);
             break;
         }
         case 'instantiate': {
             const payload = entry.payload as ContainerEventMap['instantiate'];
-            debugSink(prefix, payload.token, 'path=', payload.path.join(' -> '));
+            logger.info(prefix, payload.token, 'path=', payload.path.join(' -> '));
             break;
         }
         case 'dispose': {
             const payload = entry.payload as ContainerEventMap['dispose'];
-            debugSink(prefix, payload.token, 'session=', payload.sessionId ?? 'unknown');
+            logger.debug(prefix, payload.token, 'session=', payload.sessionId ?? 'unknown');
             break;
         }
         default:
-            debugSink(prefix, entry.payload);
+            logger.debug(prefix, entry.payload);
     }
 };
 

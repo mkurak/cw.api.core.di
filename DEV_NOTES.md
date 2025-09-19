@@ -1,74 +1,66 @@
 # Developer Notes
 
+> Reference sheet for future sessions when context is limited.
+
 ## Project Overview
-- `cw.api.core.di` is a TypeScript dependency-injection container designed to be the common foundation for API packages and infrastructure modules.
-- Key philosophies: minimal external dependencies, deterministic runtime behavior, and explicit control over lifecycles and scope contexts.
-- Node >= 18 (ES2020 target) with Jest, ESLint flat config, and Prettier for toolchain; tests live under `tests/` mirroring feature granularity.
+- `cw.api.core.di` is the shared dependency-injection container for the cw API ecosystem.
+- Design goals: minimal external dependencies, deterministic behaviour, explicit lifecycle and scope control.
+- Requires Node.js 18+; source is TypeScript targeting ES2020 with Jest/ESLint/Prettier for tooling.
 
 ## Core Architecture
-- `Container`: singleton/scoped/transient resolution, AsyncLocalStorage-based session handling, constructor and property injection, forwardRef/Optional, middleware metadata, controller/action metadata, module registration system.
-- Container is singleton across packages via `globalThis` (see `src/instance.ts`); `resetContainer()` clears state (now async-aware).
-- Session model: `createSession/runInSession/runInScope` maintain scoped lifecycles with session IDs, automatic cleanup, and AsyncLocalStorage context propagation.
-- Decorators (`src/decorators.ts`): `@Injectable`, `@Inject`, `@Optional`, `@Route`, `@UseMiddleware`, `@Controller`, `@RouteMiddleware`, `@GlobalMiddleware`, `ForwardRefInject`; property injection optionality supported via metadata.
-- Discovery (`src/discovery.ts`) loads annotated classes through dynamic import; used by downstream packages for auto-registration.
-- Module support (`src/module.ts`): `createModule` + `registerModules` handle grouped providers, imports, exports.
+- **Container**: resolves registrations across singleton/scoped/transient lifecycles, manages AsyncLocalStorage-backed sessions, supports constructor and property injection, optional dependencies, forward references, and middleware/controller metadata.
+- **Singleton access**: stored on `globalThis` (`src/instance.ts`). `resetContainer()` is async-aware.
+- **Sessions**: `createSession`, `runInSession`, `runInScope` provide per-request scoping with automatic cleanup.
+- **Decorators** (`src/decorators.ts`): `@Injectable`, `@Inject`, `@Optional`, `@Route`, `@UseMiddleware`, `@Controller`, `@RouteMiddleware`, `@GlobalMiddleware`, `ForwardRefInject`.
+- **Discovery** (`src/discovery.ts`): dynamic import helpers for auto-registration flows.
+- **Modules** (`src/module.ts`): `createModule` / `registerModules` group providers and handle imports/exports.
 
-## Recent Features (v1 cadence)
-- Constructor and property injection with optional dependencies and forwardRef handling.
-- Lifecycle enforcement (singleton/scoped/transient), scoped sessions with AsyncLocalStorage.
-- Middleware metadata pipeline for route/global scopes with ordered execution and phases.
-- Controller/action metadata for future router integrations (method/path/middlewares/tags).
-- Module/bundle registration and scope context helper `runInScope`.
-- Container events/logging: `resolve:start/success/error`, `instantiate`, `dispose`, now `stats:change`.
-- Optional property injection, nested container hierarchy with selective inheritance (include/exclude tokens or class references).
-- Statistics tracking: `ContainerStats` with counts for registrations, singleton instances, active sessions, child containers; `stats:change` event emitted on mutations; `getStats()` + `getId()` for introspection.
+## Recent Capabilities
+- Optional property injection and forward reference support.
+- Middleware metadata with ordered execution phases for global and route scopes.
+- Controller/action metadata for routing integrations.
+- Nested container hierarchy with include/exclude inheritance rules.
+- Container statistics (`getStats`, `stats:change` event) tracking registrations, instances, sessions, child containers.
+- Async disposal pipeline awaiting promise-based `dispose()` hooks.
+
+## Logging
+- All logging funnels through `cw.helper.colored.console` (`src/logger.ts`) to produce consistent ANSI output.
+- Runtime diagnostics (`enableEventLogging`), release tooling, smoke tests, and hook setup scripts reuse the shared logger theme.
 
 ## Testing & Coverage
-- Jest suite spans container behaviors, lifecycles, decorators, discovery, middleware, events, stats, nested containers.
-- Coverage thresholds enforced globally (statements/lines ≥ 90%, functions ≥ 80%, branches ≥ 70).
-- Hooks/run scripts: `npm test`, `npm run lint`, `npm run test:coverage`; format/lint steps mirror git hook pipeline.
+- Jest suites cover container behaviour, lifecycles, decorators, discovery, middleware, stats, and nested containers.
+- Coverage thresholds: statements/lines ≥ 90%, functions ≥ 80%, branches ≥ 70%.
+- Use `npm run test`, `npm run test:coverage`, `npm run lint`; the pre-commit hook enforces format → add --all → lint → coverage.
 
 ## Build & Tooling
-- `package.json`: scripts for build (`tsc --project tsconfig.build.json`), lint, format, test, test:coverage.
-- Type definitions exported via `src/index.ts`; `tsconfig.build.json` ensures only `src` compiled for publishing.
-- Pre-commit hooks (format → add --all → lint → coverage) enforced via `.githooks`; install via `npm run hooks:install` (prepare script).
+- `tsconfig.build.json` compiles only `src/` and emits declarations/maps under `dist/`.
+- ESLint 9 flat config (`eslint.config.mjs`) + Prettier (`.prettierrc.json`).
+- `npm run prepare` performs `build` then installs hooks (`scripts/setup-hooks.mjs`).
+- Smoke test (`scripts/smoke.mjs`) validates published exports.
+- Release helper (`scripts/release.mjs`) wraps `npm version` with commit/tag automation.
 
-## Release Workflow (to adopt going forward)
-- Bump `package.json` version reflecting semver (e.g., v1.0.0 for initial release).
-- Update `CHANGE_LOG.md` detailing version, highlights, rationale; include noteworthy PRs or modules touched.
-- README should track features/API; README groundwork pending (see README plan section once defined).
+## Release Workflow
+1. Update code/docs and ensure a clean working tree.
+2. Edit `CHANGE_LOG.md` and other docs as needed.
+3. Bump the version via `npm run release -- <type>` (defaults to `chore: release v%s` commit message).
+4. Script pushes commits and tags automatically.
+5. Publishing uses `npm publish --provenance` via the GitHub workflow (requires `NPM_TOKEN`).
 
-### Release helper script (added 2025-09-19)
-- Use `npm run release -- <type> [commit message]` to bump versions. Supported types: `major`, `minor`, `patch`, `premajor`, `preminor`, `prepatch`, `prerelease`.
-- The helper accepts `npm run release --patch`, `npm run release -- patch "custom message"`, `npm run release patch`, and direct node invocation `node scripts/release.mjs patch "message"`.
-- Commit message defaults to `chore: release v%s`; if you omit `%s` the script appends it automatically.
-- Script auto-runs `git push` and `git push --tags` after updating the version, so ensure the working tree is clean before running.
-- Source: `scripts/release.mjs`. Update `helpText` there if usage needs to be documented differently.
+## Publishing Notes
+- `publishConfig.provenance: true`; local publishing requires `npm publish --no-provenance` or `NPM_CONFIG_PROVENANCE=false`.
+- GitHub workflow `.github/workflows/publish.yml` targets an environment named `npm-publish`.
 
-### Publishing notes
-- `publishConfig.provenance: true` means provenance builds succeed only inside GitHub Actions (trusted publisher). Local publishes must opt out via `npm publish --no-provenance` or `NPM_CONFIG_PROVENANCE=false`.
-- `.npmrc` (gitignored) should store the auth token when publishing locally.
-- Creating a GitHub release triggers `.github/workflows/publish.yml`, which builds and publishes to npm with provenance. Skip manual `npm publish` if relying on the workflow.
-
-## ESM-specific reminders
-- Kaynaklar explicit `.js` uzantısıyla import edilmeli (`import {...} from './module.js'`); TypeScript `moduleResolution: 'Bundler'` sayesinde derlemede `.ts`’e bağlar, ancak yayınlanan ESM paketi runtime’da uzantısız importları çözmez.
-- Jest tarafında ESM için `ts-jest/presets/default-esm`, `extensionsToTreatAsEsm`, ve `moduleNameMapper` kullanılıyor; scriptler (hook/test) CommonJS kalacaksa `.cjs` uzantısına dikkat et.
-- `npm run test` yerine `npm run test:coverage` pre-commit pipeline’ı tetikler; ESM ayarları bu komutta aktive olur. Lokal hızlı kontrol için `npm run test -- --runInBand` da çalışır.
-
-## Outstanding Opportunities / Ideas
-- Enhanced logging/telemetry toggles (env or container options) if deeper observability required.
-- Compile-time provider validation, maybe diagnostics around duplicate tokens across child hierarchies.
-- Lifecycle disposal improvements (async hooks already integrated, but maybe add `onDispose` events).
-- CLI/discovery improvements (e.g., watch mode) for future tooling packages.
-- README expansion with API docs, code samples, quick starts (to be handled separately).
+## ESM Reminders
+- Always import local modules with `.js` extensions (`moduleResolution: 'Bundler'` handles TS resolution).
+- Jest uses `ts-jest/presets/default-esm`, `extensionsToTreatAsEsm`, and path mappers.
+- Node scripts live in `.mjs` form and rely on the shared colored logger.
 
 ## Usage Tips
-- Always await `resetContainer()` in tests since it may return a promise when dispose hooks are async.
-- For child containers: use `createChild({ include: [...], exclude: [...] })` to scope inherited providers; stats/events help track runtime usage.
-- To inspect runtime state, `container.getStats()` plus listening to `stats:change` provides up-to-date metrics (registrations, sessions, etc.).
-- Optional property injection: combine `@Optional()` and `@Inject(token)` on properties to allow graceful absence of providers.
+- Await `resetContainer()` in tests (async disposal).
+- Use `createChild` with include/exclude filters for scoped inheritance.
+- Listen to `stats:change` for live metrics, or call `getStats()` manually.
+- Combine `@Optional()` and `@Inject(token)` on properties to tolerate missing providers.
 
 ## Miscellaneous
-- Node’s `console.debug` is polyfilled via `debugSink` for environments without console methods.
-- `containerIdCounter` ensures stable IDs for logging/stats events.
-- Keep `PLAN.md` updated for future roadmap items; ready for v1 release activities (CHANGE_LOG, README content plan, etc.).
+- `containerIdCounter` provides stable IDs for logging and stats events.
+- Keep `PLAN.md`, `CHANGE_LOG.md`, and `DEV_NOTES.md` current alongside code changes.

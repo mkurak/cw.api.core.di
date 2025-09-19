@@ -1,5 +1,17 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import { createColoredConsole } from 'cw.helper.colored.console';
+
+const logger = createColoredConsole({
+    name: 'cw-di',
+    theme: {
+        info: { color: 'cyan' },
+        success: { color: 'green' },
+        warn: { color: 'yellow', bold: true },
+        error: { color: 'red', bold: true },
+        debug: { color: 'magenta', dim: true }
+    }
+});
 
 function run(command, args) {
     const result = spawnSync(command, args, { stdio: 'inherit' });
@@ -55,7 +67,7 @@ function detectTypeFromEnv() {
 let potentialType = normalizeType(args[0]);
 
 if (potentialType && ['help', 'h', '?'].includes(potentialType)) {
-    console.log(helpText);
+    logger.info(helpText);
     process.exit(0);
 }
 
@@ -70,7 +82,7 @@ if (potentialType && allowed.has(potentialType)) {
 const typeArg = potentialType;
 
 if (!typeArg || !allowed.has(typeArg)) {
-    console.error(helpText);
+    logger.error(helpText);
     process.exit(1);
 }
 
@@ -83,6 +95,6 @@ try {
     run('git', ['push']);
     run('git', ['push', '--tags']);
 } catch (error) {
-    console.error(error.message);
+    logger.error('Release failed', error);
     process.exit(1);
 }

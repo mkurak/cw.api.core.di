@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.0] - 2025-09-19
+### Added
+- Shared `cw.helper.colored.console` logger surfaced via `src/logger.ts` for consistent ANSI output.
+- ESM-based Git hook, release, and smoke scripts now use the colored logger for status reporting.
+
+### Changed
+- Container trace sink logs (`enableEventLogging`) now emit through the shared colored console.
+- Updated developer notes and tests to reflect the new logging integration.
+
 ## [1.0.0] - 2025-09-17
 ### Added
 - Initial public release of `cw.api.core.di` providing the shared DI core for the cw.api ecosystem.
