@@ -55,7 +55,7 @@
     "LICENSE"
   ],
   "dependencies": {
-    "cw.helper.colored.console": "^1.2.1",
+    "cw.helper.colored.console": "^1.2.2",
     "reflect-metadata": "^0.2.2"
   },
   "repository": {
