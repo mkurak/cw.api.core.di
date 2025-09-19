@@ -7,18 +7,22 @@ on:
 
 permissions:
   contents: read
-  id-token: write
+  id-token: write   # OIDC için şart
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: npm-publish
+    environment: npm-publish   # npm'deki Environment name ile birebir aynı olmalı
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
+
       - run: npm ci
       - run: npm run build
-      - run: npm publish --access public
+
+      # İlk yayın için unscoped pakette access public, OIDC için --provenance gerekli
+      - run: npm publish --access public --provenance
