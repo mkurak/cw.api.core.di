@@ -1,5 +1,9 @@
 # cw.api.core.di
 
+[![npm version](https://img.shields.io/npm/v/cw.api.core.di.svg)](https://www.npmjs.com/package/cw.api.core.di)
+[![npm downloads](https://img.shields.io/npm/dm/cw.api.core.di.svg)](https://www.npmjs.com/package/cw.api.core.di)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 ## Table of Contents
 - Overview
   - Purpose & Philosophy
