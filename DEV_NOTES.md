@@ -38,6 +38,23 @@
 - Update `CHANGE_LOG.md` detailing version, highlights, rationale; include noteworthy PRs or modules touched.
 - README should track features/API; README groundwork pending (see README plan section once defined).
 
+### Release helper script (added 2025-09-19)
+- Use `npm run release -- <type> [commit message]` to bump versions. Supported types: `major`, `minor`, `patch`, `premajor`, `preminor`, `prepatch`, `prerelease`.
+- The helper accepts `npm run release --patch`, `npm run release -- patch "custom message"`, `npm run release patch`, and direct node invocation `node scripts/release.mjs patch "message"`.
+- Commit message defaults to `chore: release v%s`; if you omit `%s` the script appends it automatically.
+- Script auto-runs `git push` and `git push --tags` after updating the version, so ensure the working tree is clean before running.
+- Source: `scripts/release.mjs`. Update `helpText` there if usage needs to be documented differently.
+
+### Publishing notes
+- `publishConfig.provenance: true` means provenance builds succeed only inside GitHub Actions (trusted publisher). Local publishes must opt out via `npm publish --no-provenance` or `NPM_CONFIG_PROVENANCE=false`.
+- `.npmrc` (gitignored) should store the auth token when publishing locally.
+- Creating a GitHub release triggers `.github/workflows/publish.yml`, which builds and publishes to npm with provenance. Skip manual `npm publish` if relying on the workflow.
+
+## ESM-specific reminders
+- Kaynaklar explicit `.js` uzantısıyla import edilmeli (`import {...} from './module.js'`); TypeScript `moduleResolution: 'Bundler'` sayesinde derlemede `.ts`’e bağlar, ancak yayınlanan ESM paketi runtime’da uzantısız importları çözmez.
+- Jest tarafında ESM için `ts-jest/presets/default-esm`, `extensionsToTreatAsEsm`, ve `moduleNameMapper` kullanılıyor; scriptler (hook/test) CommonJS kalacaksa `.cjs` uzantısına dikkat et.
+- `npm run test` yerine `npm run test:coverage` pre-commit pipeline’ı tetikler; ESM ayarları bu komutta aktive olur. Lokal hızlı kontrol için `npm run test -- --runInBand` da çalışır.
+
 ## Outstanding Opportunities / Ideas
 - Enhanced logging/telemetry toggles (env or container options) if deeper observability required.
 - Compile-time provider validation, maybe diagnostics around duplicate tokens across child hierarchies.
