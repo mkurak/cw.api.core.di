@@ -7,12 +7,13 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # OIDC için şart
+  id-token: write   # Provenance için (opsiyonel ama kalsın)
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: npm-publish   # npm'deki Environment name ile birebir aynı olmalı
+    environment: npm-publish   # NPM -> Trusted publisher'daki Environment name ile birebir aynı
+
     steps:
       - uses: actions/checkout@v4
 
@@ -21,8 +22,11 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
+      # (İstersen cache ekleyebilirsin: cache: 'npm')
       - run: npm ci
       - run: npm run build
 
-      # İlk yayın için unscoped pakette access public, OIDC için --provenance gerekli
+      # NPM_TOKEN ile yayın. Provenance açık (OIDC token'ı ayrı kanaldan alınır)
       - run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
