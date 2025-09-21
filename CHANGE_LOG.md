@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.9] - 2025-09-21
+### Changed
+- Dropped the post-commit hook that auto-tagged releases; tagging is now manual.
+
 ## [1.1.8] - 2025-09-21
 ### Added
 - Added a post-commit hook to auto-tag and push version bumps, aligning with other packages.
