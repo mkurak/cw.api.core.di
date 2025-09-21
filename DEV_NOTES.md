@@ -37,13 +37,13 @@
 - ESLint 9 flat config (`eslint.config.mjs`) + Prettier (`.prettierrc.json`).
 - `npm run prepare` performs `build` then installs hooks (`scripts/setup-hooks.mjs`).
 - Smoke test (`scripts/smoke.mjs`) validates published exports.
-- Release helper (`scripts/release.mjs`) wraps `npm version` with commit/tag automation.
+- Release workflow now relies on plain `npm version` followed by `git push --follow-tags`.
 
 ## Release Workflow
 1. Update code/docs and ensure a clean working tree.
 2. Edit `CHANGE_LOG.md` and other docs as needed.
-3. Bump the version via `npm run release -- <type>` (defaults to `chore: release v%s` commit message).
-4. Script pushes commits and tags automatically.
+3. Bump the version via `npm version <type>` (defaults to `chore: release v%s` commit message).
+4. Push the commit/tag with `git push --follow-tags`.
 5. Publishing uses `npm publish --provenance` via the GitHub workflow (requires `NPM_TOKEN`).
 
 ## Publishing Notes

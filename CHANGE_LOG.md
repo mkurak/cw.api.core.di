@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.6] - 2025-09-21
+### Changed
+- Removed the npm `release` script and updated developer notes to recommend `npm version <type>` followed by `git push --follow-tags`.
+
 ## [1.1.3] - 2025-09-19
 ### Changed
 - Switched the internal logger to `createCwLogger` from `cw.helper.colored.console/themes/cw` for consistent theming.
