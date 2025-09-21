@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.7] - 2025-09-21
+### Added
+- Expanded the smoke test to resolve a registered service, verifying container basics.
+### Changed
+- Release notes now direct maintainers to run `npm version <type>` followed by `git push --follow-tags`.
+
 ## [1.1.6] - 2025-09-21
 ### Changed
 - Removed the npm `release` script and updated developer notes to recommend `npm version <type>` followed by `git push --follow-tags`.

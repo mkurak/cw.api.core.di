@@ -1,21 +1,39 @@
-// scripts/smoke.mjs
+#!/usr/bin/env node
 import { createColoredConsole } from 'cw.helper.colored.console';
 import * as di from '../dist/index.js';
 
 const logger = createColoredConsole({
-  name: 'cw-di',
-  theme: {
-    info: { color: 'cyan' },
-    success: { color: 'green' },
-    warn: { color: 'yellow', bold: true },
-    error: { color: 'red', bold: true },
-    debug: { color: 'magenta', dim: true }
-  }
+  name: 'cw.api.core.di',
+  enabled: true
 });
 
-if (!di || typeof di.Container === 'undefined') {
-  logger.error('Smoke test failed: Container export missing');
+function fail(message, error) {
+  logger.error('Smoke test failed:', message);
+  if (error) {
+    logger.error(error);
+  }
   process.exit(1);
 }
 
-logger.success('OK: smoke test passed');
+try {
+  if (!di || typeof di.Container !== 'function') {
+    fail('Container export missing');
+  }
+
+  class ValueService {
+    constructor() {
+      this.value = 42;
+    }
+  }
+
+  const container = new di.Container();
+  container.register(ValueService);
+  const resolved = container.resolve(ValueService);
+  if (!resolved || resolved.value !== 42) {
+    fail('Container resolve returned unexpected value');
+  }
+
+  logger.info('OK: smoke test passed');
+} catch (error) {
+  fail('unexpected error', error);
+}
