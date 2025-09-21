@@ -12,12 +12,12 @@ run_step() {
     fi
 }
 
-run_step "Formatting staged files" npm run format
+run_step "Formatting sources" npm run format
 
 git add --all
 
 run_step "Running lint checks" npm run lint
-run_step "Running coverage gate (>= thresholds)" npm run test:coverage
+run_step "Running coverage checks" npm run test:coverage
 
 printf '\n[cw-di] Pre-commit checks passed.\n'
 exit 0

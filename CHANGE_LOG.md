@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.8] - 2025-09-21
+### Added
+- Added a post-commit hook to auto-tag and push version bumps, aligning with other packages.
+
 ## [1.1.7] - 2025-09-21
 ### Added
 - Expanded the smoke test to resolve a registered service, verifying container basics.
